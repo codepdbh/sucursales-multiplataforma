@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.env
+.env.local
+.DS_Store
+uploads/*
+!uploads/products/
+uploads/products/*
+!uploads/products/.gitkeep
