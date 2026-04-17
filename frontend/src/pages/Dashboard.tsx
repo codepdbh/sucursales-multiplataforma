@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 
 import { useAuth } from '../auth/auth-context';
-import logo from '../assets/logo.png';
-import { ThemeSwitch } from '../components/ThemeSwitch';
+import { DashboardHeader } from '../components/dashboard/DashboardHeader';
+import { OverviewSection } from '../components/dashboard/OverviewSection';
+import type { OverviewPieSlice } from '../components/dashboard/OverviewSection';
+import { BranchesSection } from '../components/dashboard/sections/BranchesSection';
+import { InventorySection } from '../components/dashboard/sections/InventorySection';
+import { ProductsSection } from '../components/dashboard/sections/ProductsSection';
+import { ReportsSection } from '../components/dashboard/sections/ReportsSection';
+import { SalesSection } from '../components/dashboard/sections/SalesSection';
+import { UsersSection } from '../components/dashboard/sections/UsersSection';
 import { ApiError, apiRequest, getApiBaseUrl } from '../lib/api';
 import { applyTheme, getInitialTheme } from '../lib/theme';
 import type {
@@ -47,30 +54,7 @@ interface SaleCartItem {
   unitPrice: string;
 }
 
-interface PieSlice {
-  label: string;
-  value: number;
-  color: string;
-}
-
 const PIE_COLORS = ['#06b6d4', '#14b8a6', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-
-function buildPieGradient(slices: PieSlice[]): string {
-  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  if (!total) {
-    return 'conic-gradient(rgba(148,163,184,0.25) 0% 100%)';
-  }
-
-  let current = 0;
-  const ranges = slices.map((slice) => {
-    const start = (current / total) * 100;
-    current += slice.value;
-    const end = (current / total) * 100;
-    return `${slice.color} ${start}% ${end}%`;
-  });
-
-  return `conic-gradient(${ranges.join(',')})`;
-}
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat('es-BO', {
@@ -1099,7 +1083,7 @@ export const Dashboard = () => {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
   }, [salesToday]);
-  const branchPieSlices = useMemo<PieSlice[]>(
+  const branchPieSlices = useMemo<OverviewPieSlice[]>(
     () =>
       [...salesByBranch.entries()]
         .sort((a, b) => b[1] - a[1])
@@ -1111,7 +1095,7 @@ export const Dashboard = () => {
         })),
     [salesByBranch],
   );
-  const productPieSlices = useMemo<PieSlice[]>(
+  const productPieSlices = useMemo<OverviewPieSlice[]>(
     () =>
       topProductsToday.map((item, index) => ({
         label: item.name,
@@ -1128,12 +1112,6 @@ export const Dashboard = () => {
         .slice(0, 5),
     [stock],
   );
-  const branchPieStyle: CSSProperties = {
-    background: buildPieGradient(branchPieSlices),
-  };
-  const productPieStyle: CSSProperties = {
-    background: buildPieGradient(productPieSlices),
-  };
   const saleSubtotalPreview = saleForm.items.reduce((sum, item) => {
     const qty = Number(item.quantity || '0');
     const price = Number(item.unitPrice || '0');
@@ -1162,83 +1140,21 @@ export const Dashboard = () => {
       <div className="pointer-events-none absolute -right-14 top-28 h-80 w-80 rounded-full bg-blue-600/25 blur-3xl" />
 
       <div className="relative mx-auto flex w-full flex-col gap-5 px-4 py-5 md:px-6 md:py-7 lg:px-8">
-        <header className="dashboard-hero -mx-4 border-y border-slate-700/80 bg-slate-900/85 px-4 py-5 shadow-xl backdrop-blur-md md:-mx-6 md:px-6 md:py-6 lg:-mx-8 lg:px-8">
-          <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)_auto] xl:items-center">
-            <div className="flex justify-center xl:justify-start">
-              <img
-                src={logo}
-                alt="Logo del sistema"
-                className="h-16 w-full max-w-[240px] object-contain object-left"
-              />
-            </div>
-            <div className="space-y-2 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Panel operativo</p>
-              <h1 className="text-3xl font-bold md:text-4xl">Sistema Inventario y Ventas</h1>
-              <p className="text-sm text-slate-300">Gestion operativa por roles y sucursales</p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 xl:justify-end">
-              <ThemeSwitch
-                isLight={isLight}
-                onToggle={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-              />
-              <button
-                type="button"
-                className="ui-secondary-btn rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
-                onClick={() => void loadInitialData()}
-              >
-                Recargar datos
-              </button>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2">
-                <div className="grid h-11 w-11 place-items-center rounded-full bg-cyan-500/25 text-cyan-300">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 20c1.8-4 5-6 8-6s6.2 2 8 6" />
-                  </svg>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-slate-100">{auth.user?.username}</p>
-                  <p className="text-xs text-slate-400">
-                    {auth.user?.role} | {auth.user?.branch?.name ?? 'Sin sucursal'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="ui-danger-btn rounded-xl bg-red-500 px-3 py-2 text-xs font-semibold text-white hover:bg-red-400"
-                  onClick={auth.logout}
-                >
-                  Cerrar sesion
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 flex justify-center">
-            <div className="inline-flex flex-wrap justify-center gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/40 p-2 shadow-[0_16px_35px_-24px_rgba(8,47,73,0.7)]">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={`rounded-xl px-5 py-2 text-sm font-semibold transition ${
-                    activeTab === tab.key
-                      ? 'bg-cyan-500 text-slate-950 shadow-[0_10px_24px_-14px_rgba(6,182,212,0.85)]'
-                      : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
-                  }`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <p className="mx-auto mt-3 max-w-3xl rounded-full border border-slate-700/80 bg-slate-950/50 px-4 py-2 text-center text-sm text-slate-300">
-            {activeTabHint}
-          </p>
-        </header>
+        <DashboardHeader
+          activeTab={activeTab}
+          activeTabHint={activeTabHint}
+          isLight={isLight}
+          onLogout={auth.logout}
+          onReloadData={() => void loadInitialData()}
+          onTabChange={(tabKey) => setActiveTab(tabKey as DashboardTab)}
+          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          tabs={tabs}
+          user={{
+            branchName: auth.user?.branch?.name,
+            role: auth.user?.role,
+            username: auth.user?.username,
+          }}
+        />
 
         {error ? (
           <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
@@ -1257,1599 +1173,183 @@ export const Dashboard = () => {
         ) : null}
 
         {activeTab === 'overview' ? (
-          <section className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <p className="text-sm text-slate-400">Productos</p>
-                <h3 className="mt-2 text-3xl font-bold">{totalProducts}</h3>
-                <p className="text-xs text-slate-500">Productos visibles en el sistema.</p>
-              </article>
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <p className="text-sm text-slate-400">Registros de stock</p>
-                <h3 className="mt-2 text-3xl font-bold">{totalStockItems}</h3>
-                <p className="text-xs text-slate-500">Stock actual segun filtros de sucursal.</p>
-              </article>
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <p className="text-sm text-slate-400">Ventas del dia</p>
-                <h3 className="mt-2 text-3xl font-bold">{formatMoney(totalSalesToday)}</h3>
-                <p className="text-xs text-slate-500">{totalTicketsToday} tickets emitidos hoy.</p>
-              </article>
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <p className="text-sm text-slate-400">Ticket promedio</p>
-                <h3 className="mt-2 text-3xl font-bold">{formatMoney(averageTicketToday)}</h3>
-                <p className="text-xs text-slate-500">Unidades vendidas hoy: {unitsSoldToday}</p>
-              </article>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-lg font-semibold">Top productos vendidos (hoy)</h3>
-                  <span className="text-xs text-slate-400">Por cantidad</span>
-                </div>
-                {topProductsToday.length ? (
-                  <div className="mt-3 space-y-2">
-                    {topProductsToday.map((item, index) => (
-                      <div
-                        key={item.name}
-                        className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2"
-                      >
-                        <p className="truncate text-sm">
-                          <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-xs text-cyan-300">
-                            {index + 1}
-                          </span>
-                          {item.name}
-                        </p>
-                        <p className="text-right text-sm font-semibold text-cyan-300">
-                          {item.quantity} u
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">
-                    Aun no hay ventas para calcular productos mas vendidos.
-                  </p>
-                )}
-              </article>
-
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <h3 className="text-lg font-semibold">Ventas por sucursal</h3>
-                <p className="text-xs text-slate-400">Distribucion de ingresos del dia</p>
-                <div className="mt-4 flex items-center gap-4">
-                  <div
-                    className="h-32 w-32 rounded-full border border-slate-700"
-                    style={branchPieStyle}
-                    aria-label="Grafico de torta de ventas por sucursal"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    {branchPieSlices.length ? (
-                      branchPieSlices.map((slice) => (
-                        <div key={slice.label} className="flex items-center gap-2 text-xs">
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: slice.color }}
-                          />
-                          <span className="truncate text-slate-300">{slice.label}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-400">Sin datos de ventas hoy.</p>
-                    )}
-                  </div>
-                </div>
-                <p className="mt-3 text-sm text-slate-300">
-                  Sucursal lider:{' '}
-                  <span className="font-semibold text-cyan-300">
-                    {topBranchToday ? topBranchToday.branchName : 'N/A'}
-                  </span>
-                </p>
-              </article>
-
-              <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <h3 className="text-lg font-semibold">Mix de productos (hoy)</h3>
-                <p className="text-xs text-slate-400">Participacion por unidades vendidas</p>
-                <div className="mt-4 flex items-center gap-4">
-                  <div
-                    className="h-32 w-32 rounded-full border border-slate-700"
-                    style={productPieStyle}
-                    aria-label="Grafico de torta de productos vendidos"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    {productPieSlices.length ? (
-                      productPieSlices.map((slice) => (
-                        <div key={slice.label} className="flex items-center gap-2 text-xs">
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: slice.color }}
-                          />
-                          <span className="truncate text-slate-300">{slice.label}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-400">Sin productos vendidos hoy.</p>
-                    )}
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-              <h3 className="text-lg font-semibold">Alertas de stock bajo</h3>
-              <p className="text-xs text-slate-400">Productos con 5 unidades o menos</p>
-              {lowStockRows.length ? (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="text-slate-400">
-                      <tr>
-                        <th className="pb-2">Sucursal</th>
-                        <th className="pb-2">Producto</th>
-                        <th className="pb-2">Cantidad</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lowStockRows.map((row) => (
-                        <tr key={row.id} className="border-t border-slate-800">
-                          <td className="py-2">{row.branchName}</td>
-                          <td>{row.productName}</td>
-                          <td className="font-semibold text-amber-300">{row.quantity}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-400">
-                  No hay alertas de stock bajo con los datos actuales.
-                </p>
-              )}
-            </article>
-          </section>
+          <OverviewSection
+            averageTicketToday={averageTicketToday}
+            branchPieSlices={branchPieSlices}
+            formatMoney={formatMoney}
+            lowStockRows={lowStockRows}
+            productPieSlices={productPieSlices}
+            topBranchTodayName={topBranchToday?.branchName}
+            topProductsToday={topProductsToday}
+            totalProducts={totalProducts}
+            totalSalesToday={totalSalesToday}
+            totalStockItems={totalStockItems}
+            totalTicketsToday={totalTicketsToday}
+            unitsSoldToday={unitsSoldToday}
+          />
         ) : null}
 
-        {activeTab === 'products' ? (
-          <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
-            <div className="space-y-4">
-              <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <input
-                    value={productSearch}
-                    onChange={(event) => setProductSearch(event.target.value)}
-                    placeholder="Buscar producto..."
-                    className="min-w-56 flex-1 ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-cyan-400"
-                  />
-                  <select
-                    value={productSiatFilter}
-                    onChange={(event) =>
-                      setProductSiatFilter(event.target.value as 'ALL' | 'YES' | 'NO')
-                    }
-                    className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="ALL">SIAT: todos</option>
-                    <option value="YES">SIAT habilitado</option>
-                    <option value="NO">SIAT deshabilitado</option>
-                  </select>
-                  <select
-                    value={productActiveFilter}
-                    onChange={(event) =>
-                      setProductActiveFilter(event.target.value as 'ALL' | 'YES' | 'NO')
-                    }
-                    className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="ALL">Estado: todos</option>
-                    <option value="YES">Activos</option>
-                    <option value="NO">Inactivos</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                    onClick={() => void withLoader(loadProducts)}
-                  >
-                    Filtrar
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="text-slate-400">
-                      <tr>
-                        <th className="pb-3">Foto</th>
-                        <th className="pb-3">Producto</th>
-                        <th className="pb-3">Marca</th>
-                        <th className="pb-3">Precio</th>
-                        <th className="pb-3">SIAT</th>
-                        <th className="pb-3">Activo</th>
-                        <th className="pb-3">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleProducts.map((product) => (
-                        <tr key={product.id} className="border-t border-slate-800">
-                          <td className="py-3 pr-3">
-                            {product.photoUrl ? (
-                              <img
-                                src={buildUploadsUrl(product.photoUrl)}
-                                alt={product.name}
-                                className="h-11 w-11 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="grid h-11 w-11 place-items-center rounded-lg border border-slate-700 bg-slate-950 text-[10px] text-slate-500">
-                                Sin foto
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3">
-                            <p className="font-semibold">{product.name}</p>
-                            <p className="text-xs text-slate-500">
-                              Barcode: {product.barcode ?? 'N/A'}
-                            </p>
-                          </td>
-                          <td>{product.brand.name}</td>
-                          <td>{formatMoney(product.defaultPrice)}</td>
-                          <td>{product.siatEnabled ? 'Si' : 'No'}</td>
-                          <td>{product.isActive ? 'Si' : 'No'}</td>
-                          <td>
-                            {canManage ? (
-                              <button
-                                type="button"
-                                className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800"
-                                onClick={() => startProductEdit(product)}
-                              >
-                                Editar
-                              </button>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {canManage ? (
-              <div className="space-y-4">
-                <form
-                  className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  onSubmit={(event) => void onProductSubmit(event)}
-                >
-                  <h3 className="text-lg font-semibold">
-                    {editingProductId ? 'Editar producto' : 'Nuevo producto'}
-                  </h3>
-                  <input
-                    value={productForm.brandName}
-                    onChange={(event) =>
-                      setProductForm((prev) => ({ ...prev, brandName: event.target.value }))
-                    }
-                    placeholder="Marca"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                    required
-                  />
-                  <input
-                    value={productForm.name}
-                    onChange={(event) =>
-                      setProductForm((prev) => ({ ...prev, name: event.target.value }))
-                    }
-                    placeholder="Nombre del producto"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                    required
-                  />
-                  <input
-                    value={productForm.barcode}
-                    onChange={(event) =>
-                      setProductForm((prev) => ({ ...prev, barcode: event.target.value }))
-                    }
-                    placeholder="Codigo de barras (opcional)"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                  />
-                  <input
-                    value={productForm.defaultPrice}
-                    onChange={(event) =>
-                      setProductForm((prev) => ({ ...prev, defaultPrice: event.target.value }))
-                    }
-                    placeholder="Precio"
-                    type="number"
-                    step="0.01"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none"
-                    required
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={productForm.requiresWeight}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          requiresWeight: event.target.checked,
-                        }))
-                      }
-                    />
-                    Requiere peso
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={productForm.siatEnabled}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          siatEnabled: event.target.checked,
-                        }))
-                      }
-                    />
-                    SIAT habilitado
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={productForm.isActive}
-                      onChange={(event) =>
-                        setProductForm((prev) => ({
-                          ...prev,
-                          isActive: event.target.checked,
-                        }))
-                      }
-                    />
-                    Producto activo
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                    >
-                      {editingProductId ? 'Guardar cambios' : 'Crear producto'}
-                    </button>
-                    {editingProductId ? (
-                      <button
-                        type="button"
-                        className="rounded-xl border border-slate-700 px-4 py-2 text-sm"
-                        onClick={() => {
-                          setEditingProductId(null);
-                          setProductForm({
-                            brandName: '',
-                            name: '',
-                            barcode: '',
-                            defaultPrice: '',
-                            requiresWeight: false,
-                            siatEnabled: false,
-                            isActive: true,
-                          });
-                        }}
-                      >
-                        Cancelar
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-
-                <form
-                  className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  onSubmit={(event) => void onUploadPhoto(event)}
-                >
-                  <h3 className="text-lg font-semibold">Subir foto de producto</h3>
-                  <select
-                    value={photoUploadProductId}
-                    onChange={(event) => setPhotoUploadProductId(event.target.value)}
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Seleccionar producto</option>
-                    {visibleProducts.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setPhotoUploadFile(event.target.files?.[0] ?? null)}
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                  >
-                    Subir
-                  </button>
-                </form>
-
-                <form
-                  className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  onSubmit={(event) => void onImportCsv(event)}
-                >
-                  <h3 className="text-lg font-semibold">Importar productos por CSV</h3>
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  />
-                  {canManage ? (
-                    <select
-                      value={csvBranchId}
-                      onChange={(event) => setCsvBranchId(event.target.value)}
-                      className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                      required
-                    >
-                      <option value="">Selecciona sucursal</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-                  <button
-                    type="submit"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                  >
-                    Importar CSV
-                  </button>
-                  {csvResult ? (
-                    <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm">
-                      <p>Productos nuevos: {csvResult.createdProducts}</p>
-                      <p>Productos actualizados: {csvResult.updatedProducts}</p>
-                      <p>Filas de stock procesadas: {csvResult.stockRowsProcessed}</p>
-                    </div>
-                  ) : null}
-                </form>
-
-                <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                  <h3 className="mb-3 text-lg font-semibold">Vista rapida de fotos</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {products
-                      .filter((product) => !!product.photoUrl)
-                      .slice(0, 6)
-                      .map((product) => (
-                        <article key={product.id} className="rounded-xl border border-slate-700 p-2">
-                          <img
-                            src={buildUploadsUrl(product.photoUrl)}
-                            alt={product.name}
-                            className="h-24 w-full rounded-lg object-cover"
-                          />
-                          <p className="mt-2 truncate text-xs">{product.name}</p>
-                        </article>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </section>
+                {activeTab === 'products' ? (
+          <ProductsSection
+            branches={branches}
+            buildUploadsUrl={buildUploadsUrl}
+            canManage={canManage}
+            csvBranchId={csvBranchId}
+            csvResult={csvResult}
+            editingProductId={editingProductId}
+            formatMoney={formatMoney}
+            loadProducts={loadProducts}
+            onImportCsv={onImportCsv}
+            onProductSubmit={onProductSubmit}
+            onUploadPhoto={onUploadPhoto}
+            photoUploadProductId={photoUploadProductId}
+            productActiveFilter={productActiveFilter}
+            productForm={productForm}
+            productSearch={productSearch}
+            productSiatFilter={productSiatFilter}
+            products={products}
+            setCsvBranchId={setCsvBranchId}
+            setCsvFile={setCsvFile}
+            setEditingProductId={setEditingProductId}
+            setPhotoUploadFile={setPhotoUploadFile}
+            setPhotoUploadProductId={setPhotoUploadProductId}
+            setProductActiveFilter={setProductActiveFilter}
+            setProductForm={setProductForm}
+            setProductSearch={setProductSearch}
+            setProductSiatFilter={setProductSiatFilter}
+            startProductEdit={startProductEdit}
+            visibleProducts={visibleProducts}
+            withLoader={withLoader}
+          />
         ) : null}
 
-        {activeTab === 'inventory' ? (
-          <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <div className="space-y-4">
-              <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                <div className="mb-4 flex flex-wrap items-center gap-2">
-                  {canManage ? (
-                    <select
-                      value={stockBranchId}
-                      onChange={(event) => setStockBranchId(event.target.value)}
-                      className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    >
-                      <option value="">Todas las sucursales</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                    onClick={() => void withLoader(loadStock)}
-                  >
-                    Refrescar stock
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="text-slate-400">
-                      <tr>
-                        <th className="pb-3">Foto</th>
-                        <th className="pb-3">Sucursal</th>
-                        <th className="pb-3">Producto</th>
-                        <th className="pb-3">Marca</th>
-                        <th className="pb-3">Cantidad</th>
-                        {canManage ? <th className="pb-3">Accion</th> : null}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stock.map((item) => (
-                        <tr key={item.id} className="border-t border-slate-800">
-                          <td className="py-3 pr-3">
-                            {productPhotoById.get(item.productId) ? (
-                              <img
-                                src={buildUploadsUrl(productPhotoById.get(item.productId) ?? null)}
-                                alt={item.productName}
-                                className="h-11 w-11 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="grid h-11 w-11 place-items-center rounded-lg border border-slate-700 bg-slate-950 text-[10px] text-slate-500">
-                                Sin foto
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3">{item.branchName}</td>
-                          <td>{item.productName}</td>
-                          <td>{item.brandName}</td>
-                          <td>{item.quantity}</td>
-                          {canManage ? (
-                            <td>
-                              <button
-                                type="button"
-                                className="rounded-lg border border-cyan-500/40 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10"
-                                onClick={() => startStockAdjust(item)}
-                              >
-                                Ajustar
-                              </button>
-                            </td>
-                          ) : null}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {isOwner ? (
-                <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <select
-                      value={movementBranchId}
-                      onChange={(event) => setMovementBranchId(event.target.value)}
-                      className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    >
-                      <option value="">Movimientos globales</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                      onClick={() => void withLoader(loadMovements)}
-                    >
-                      Ver movimientos
-                    </button>
-                  </div>
-                  <div className="max-h-80 overflow-auto rounded-xl border border-slate-800">
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="bg-slate-950 text-slate-400">
-                        <tr>
-                          <th className="px-3 py-2">Fecha</th>
-                          <th className="px-3 py-2">Tipo</th>
-                          <th className="px-3 py-2">Producto</th>
-                          <th className="px-3 py-2">Cantidad</th>
-                          <th className="px-3 py-2">Ref</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {movements.map((movement) => (
-                          <tr key={movement.id} className="border-t border-slate-800">
-                            <td className="px-3 py-2">{formatDate(movement.createdAt)}</td>
-                            <td className="px-3 py-2">{movement.type}</td>
-                            <td className="px-3 py-2">{movement.productName}</td>
-                            <td className="px-3 py-2">{movement.quantity}</td>
-                            <td className="px-3 py-2">{movement.refType ?? '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {canManage ? (
-              <div className="space-y-4">
-                <form
-                  className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  onSubmit={(event) => void onAdjustStock(event)}
-                >
-                  <h3 className="text-lg font-semibold">Ajuste de stock (cantidad final)</h3>
-                  <p className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
-                    Define la cantidad final deseada. Si es menor al actual, descuenta.
-                    Si es mayor, incrementa stock.
-                  </p>
-                  <select
-                    value={stockAdjustForm.stockId}
-                    onChange={(event) => {
-                      const selected = stock.find((item) => item.id === event.target.value);
-                      if (!selected) {
-                        return;
-                      }
-                      startStockAdjust(selected);
-                    }}
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Selecciona producto/sucursal</option>
-                    {stock.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.branchName} - {item.productName} (actual: {item.quantity})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-400">
-                        Stock actual (solo lectura)
-                      </span>
-                      <input
-                        value={stockAdjustForm.currentQuantity}
-                        readOnly
-                        placeholder="Stock actual"
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-slate-400">
-                        Cantidad final deseada
-                      </span>
-                      <input
-                        value={stockAdjustForm.targetQuantity}
-                        onChange={(event) =>
-                          setStockAdjustForm((prev) => ({
-                            ...prev,
-                            targetQuantity: event.target.value,
-                          }))
-                        }
-                        type="number"
-                        min="0"
-                        step="0.001"
-                        placeholder="Ejemplo: 50"
-                        className="ui-control w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                        required
-                      />
-                    </label>
-                  </div>
-                  <input
-                    value={stockAdjustForm.unitPrice}
-                    onChange={(event) =>
-                      setStockAdjustForm((prev) => ({
-                        ...prev,
-                        unitPrice: event.target.value,
-                      }))
-                    }
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Costo/precio unitario (opcional)"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  />
-                  <textarea
-                    value={stockAdjustForm.notes}
-                    onChange={(event) =>
-                      setStockAdjustForm((prev) => ({
-                        ...prev,
-                        notes: event.target.value,
-                      }))
-                    }
-                    placeholder="Motivo del ajuste"
-                    className="h-20 w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                  >
-                    Aplicar ajuste
-                  </button>
-                </form>
-              </div>
-            ) : null}
-          </section>
+                {activeTab === 'inventory' ? (
+          <InventorySection
+            branches={branches}
+            buildUploadsUrl={buildUploadsUrl}
+            canManage={canManage}
+            formatDate={formatDate}
+            isOwner={isOwner}
+            loadMovements={loadMovements}
+            loadStock={loadStock}
+            movementBranchId={movementBranchId}
+            movements={movements}
+            onAdjustStock={onAdjustStock}
+            productPhotoById={productPhotoById}
+            setMovementBranchId={setMovementBranchId}
+            setStockAdjustForm={setStockAdjustForm}
+            setStockBranchId={setStockBranchId}
+            startStockAdjust={startStockAdjust}
+            stock={stock}
+            stockAdjustForm={stockAdjustForm}
+            stockBranchId={stockBranchId}
+            withLoader={withLoader}
+          />
         ) : null}
 
-        {activeTab === 'sales' ? (
-          <section className={`grid gap-4 ${canManage ? 'xl:grid-cols-[1.3fr_1fr]' : ''}`}>
-            <div className="space-y-4">
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onCreateSale(event)}
-              >
-                <h3 className="text-lg font-semibold">Registrar venta</h3>
-                {canManage ? (
-                  <select
-                    value={saleForm.branchId}
-                    onChange={(event) =>
-                      setSaleForm((prev) => ({ ...prev, branchId: event.target.value }))
-                    }
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Sucursal</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-sm text-slate-400">
-                    Sucursal forzada por token: {auth.user?.branch?.name ?? 'N/A'}
-                  </p>
-                )}
-                <div className="space-y-3 rounded-2xl border border-slate-700 p-3">
-                  <label className="text-sm font-medium text-slate-300">
-                    Buscar producto por ID, codigo de barras o nombre
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: 'ALL', label: 'Todos' },
-                      { value: 'NAME', label: 'Nombre' },
-                      { value: 'BARCODE', label: 'Codigo de barras' },
-                    ].map((mode) => (
-                      <button
-                        key={mode.value}
-                        type="button"
-                        className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                          saleSearchMode === mode.value
-                            ? 'bg-cyan-500 text-slate-950'
-                            : 'border border-slate-700 text-slate-300 hover:bg-slate-800'
-                        }`}
-                        onClick={() =>
-                          setSaleSearchMode(mode.value as 'ALL' | 'NAME' | 'BARCODE')
-                        }
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    value={saleLookup}
-                    onChange={(event) => setSaleLookup(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') {
-                        return;
-                      }
-
-                      event.preventDefault();
-                      const candidate = resolveLookupCandidate(
-                        saleLookup,
-                        saleSearchResults,
-                      );
-                      if (candidate) {
-                        addProductToSale(candidate);
-                        setSaleLookup('');
-                        setSaleSearchResults([]);
-                      }
-                    }}
-                    placeholder={
-                      saleSearchMode === 'NAME'
-                        ? 'Buscar por nombre...'
-                        : saleSearchMode === 'BARCODE'
-                          ? 'Buscar por codigo de barras...'
-                          : 'Buscar por nombre o codigo de barras...'
-                    }
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  />
-                  {saleSearchLoading ? (
-                    <p className="text-xs text-slate-400">Buscando productos...</p>
-                  ) : null}
-                  {saleSearchResults.length ? (
-                    <div className="grid gap-2">
-                      {saleSearchResults.slice(0, 6).map((product) => {
-                        const stockInfo = getAvailableStockInfo(product.id);
-                        return (
-                          <button
-                          key={product.id}
-                          type="button"
-                          className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 p-2 text-left hover:bg-slate-800"
-                          onClick={() => {
-                            addProductToSale(product);
-                            setSaleLookup('');
-                            setSaleSearchResults([]);
-                          }}
-                        >
-                          <img
-                            src={buildUploadsUrl(product.photoUrl)}
-                            alt={product.name}
-                            className="h-14 w-14 rounded-lg object-cover"
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">{product.name}</p>
-                            <p className="truncate text-xs text-slate-400">
-                              {product.brand.name} • {product.barcode ?? 'Sin barcode'}
-                            </p>
-                            <p
-                              className={`truncate text-xs ${
-                                stockInfo.currentBranchStock > 0
-                                  ? 'text-emerald-300'
-                                  : 'text-amber-300'
-                              }`}
-                            >
-                              Stock en sucursal: {stockInfo.currentBranchStock}
-                              {stockInfo.otherBranchesStock > 0
-                                ? ` (otras sucursales: ${stockInfo.otherBranchesStock})`
-                                : ''}
-                            </p>
-                            {stockInfo.currentBranchStock <= 0 &&
-                            stockInfo.otherBranchesStock > 0 ? (
-                              <span className="mt-1 inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                                Disponible en otra sucursal
-                              </span>
-                            ) : null}
-                          </div>
-                          <span className="ml-auto text-sm font-semibold text-cyan-300">
-                            {formatMoney(product.defaultPrice)}
-                          </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-300">Lista de venta</h4>
-                  {saleForm.items.length ? (
-                    saleForm.items.map((item, index) => {
-                      const stockInfo = getAvailableStockInfo(item.productId);
-                      return (
-                        <div
-                        key={`${item.productId}-${index}`}
-                        className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950 p-3 md:grid-cols-[64px_1fr_auto]"
-                      >
-                        <img
-                          src={buildUploadsUrl(item.photoUrl)}
-                          alt={item.productName}
-                          className="h-16 w-16 rounded-lg object-cover"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">{item.productName}</p>
-                          <p className="truncate text-xs text-slate-400">
-                            Barcode: {item.barcode ?? 'N/A'}
-                          </p>
-                          <p
-                            className={`truncate text-xs ${
-                              stockInfo.currentBranchStock > 0
-                                ? 'text-emerald-300'
-                                : 'text-amber-300'
-                            }`}
-                          >
-                            Stock en sucursal: {stockInfo.currentBranchStock}
-                            {stockInfo.otherBranchesStock > 0
-                              ? ` (otras sucursales: ${stockInfo.otherBranchesStock})`
-                              : ''}
-                          </p>
-                          {stockInfo.currentBranchStock <= 0 &&
-                          stockInfo.otherBranchesStock > 0 ? (
-                            <span className="mt-1 inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
-                              Disponible en otra sucursal
-                            </span>
-                          ) : null}
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <input
-                              value={item.quantity}
-                              onChange={(event) =>
-                                updateSaleItem(index, { quantity: event.target.value })
-                              }
-                              type="number"
-                              step="1"
-                              min="1"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              placeholder="Cantidad"
-                              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                              required
-                            />
-                            <input
-                              value={item.unitPrice}
-                              onChange={(event) =>
-                                updateSaleItem(index, { unitPrice: event.target.value })
-                              }
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Precio unitario"
-                              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end justify-between gap-2">
-                          <p className="text-sm font-semibold text-cyan-300">
-                            {formatMoney(
-                              (Number(item.quantity || '0') || 0) *
-                                (Number(item.unitPrice || '0') || 0),
-                            )}
-                          </p>
-                          <button
-                            type="button"
-                            className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
-                            onClick={() => removeSaleItem(index)}
-                          >
-                            Quitar
-                          </button>
-                        </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-slate-700 p-3 text-sm text-slate-400">
-                      Aun no agregaste productos. Usa el buscador o escanea un codigo.
-                    </p>
-                  )}
-                </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    value={saleForm.discount}
-                    onChange={(event) =>
-                      setSaleForm((prev) => ({ ...prev, discount: event.target.value }))
-                    }
-                    type="number"
-                    step="0.01"
-                    placeholder="Descuento"
-                    className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  />
-                  <label className="flex items-center gap-2 ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={saleForm.invoiceEnabled}
-                      onChange={(event) =>
-                        setSaleForm((prev) => ({
-                          ...prev,
-                          invoiceEnabled: event.target.checked,
-                        }))
-                      }
-                    />
-                    Factura habilitada
-                  </label>
-                </div>
-                <textarea
-                  value={saleForm.notes}
-                  onChange={(event) =>
-                    setSaleForm((prev) => ({ ...prev, notes: event.target.value }))
-                  }
-                  placeholder="Notas de la venta"
-                  className="h-20 w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                />
-                <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm">
-                  <p className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>{formatMoney(saleSubtotalPreview)}</span>
-                  </p>
-                  <p className="mt-1 flex justify-between">
-                    <span>Descuento</span>
-                    <span>{formatMoney(saleDiscountPreview)}</span>
-                  </p>
-                  <p className="mt-2 flex justify-between text-base font-semibold text-cyan-300">
-                    <span>Total</span>
-                    <span>{formatMoney(saleTotalPreview)}</span>
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Confirmar venta
-                </button>
-              </form>
-
-              {canManage ? (
-                <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold">Ventas de hoy</h3>
-                    <select
-                      value={salesBranchId}
-                      onChange={(event) => setSalesBranchId(event.target.value)}
-                      className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    >
-                      <option value="">Todas las sucursales</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                      onClick={() => void withLoader(loadSalesToday)}
-                    >
-                      Recargar
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="text-slate-400">
-                        <tr>
-                          <th className="pb-2">ID</th>
-                          <th className="pb-2">Sucursal</th>
-                          <th className="pb-2">Usuario</th>
-                          <th className="pb-2">Total</th>
-                          <th className="pb-2">Accion</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {salesToday.map((sale) => (
-                          <tr key={sale.id} className="border-t border-slate-800">
-                            <td className="py-2">{sale.id.slice(0, 8)}...</td>
-                            <td>{sale.branchName}</td>
-                            <td>{sale.username}</td>
-                            <td>{formatMoney(sale.total)}</td>
-                            <td>
-                              <button
-                                type="button"
-                                className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800"
-                                onClick={() =>
-                                  void withLoader(async () => {
-                                    const data = await apiRequest<Sale>(`/sales/${sale.id}`);
-                                    setSelectedSale(data);
-                                  })
-                                }
-                              >
-                                Ver
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {canManage ? <div className="space-y-4">
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onFindSaleById(event)}
-              >
-                <h3 className="text-lg font-semibold">Buscar venta por ID</h3>
-                <input
-                  value={saleDetailId}
-                  onChange={(event) => setSaleDetailId(event.target.value)}
-                  placeholder="ID de venta"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Buscar
-                </button>
-              </form>
-
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onPatchSale(event)}
-              >
-                <h3 className="text-lg font-semibold">Correccion de venta</h3>
-                <input
-                  value={salePatchForm.saleId}
-                  onChange={(event) =>
-                    setSalePatchForm((prev) => ({ ...prev, saleId: event.target.value }))
-                  }
-                  placeholder="ID de venta"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <textarea
-                  value={salePatchForm.notes}
-                  onChange={(event) =>
-                    setSalePatchForm((prev) => ({ ...prev, notes: event.target.value }))
-                  }
-                  placeholder="Notas"
-                  className="h-20 w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                />
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={salePatchForm.invoiceEnabled}
-                    onChange={(event) =>
-                      setSalePatchForm((prev) => ({
-                        ...prev,
-                        invoiceEnabled: event.target.checked,
-                      }))
-                    }
-                  />
-                  Factura habilitada
-                </label>
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Aplicar correccion
-                </button>
-              </form>
-
-              {isOwner ? (
-                <form
-                  className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  onSubmit={(event) => void onEnableEditWindow(event)}
-                >
-                  <h3 className="text-lg font-semibold">Habilitar ventana de correccion</h3>
-                  <select
-                    value={enableEditForm.branchId}
-                    onChange={(event) =>
-                      setEnableEditForm((prev) => ({ ...prev, branchId: event.target.value }))
-                    }
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Sucursal</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={enableEditForm.expiresAt}
-                    onChange={(event) =>
-                      setEnableEditForm((prev) => ({ ...prev, expiresAt: event.target.value }))
-                    }
-                    type="datetime-local"
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                  >
-                    Habilitar
-                  </button>
-                  {lastEditControl ? (
-                    <p className="text-xs text-slate-400">
-                      Ultima ventana creada: {formatDate(lastEditControl.createdAt)} | Expira:{' '}
-                      {lastEditControl.expiresAt
-                        ? formatDate(lastEditControl.expiresAt)
-                        : 'Sin expiracion'}
-                    </p>
-                  ) : null}
-                </form>
-              ) : null}
-
-              {selectedSale ? (
-                <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-                  <h3 className="text-lg font-semibold">Detalle de venta</h3>
-                  <p className="mt-2 text-sm text-slate-300">
-                    {selectedSale.id} | {selectedSale.branchName} |{' '}
-                    {formatDate(selectedSale.createdAt)}
-                  </p>
-                  <p className="text-sm text-slate-400">
-                    Total: {formatMoney(selectedSale.total)} | Subtotal:{' '}
-                    {formatMoney(selectedSale.subtotal)} | Descuento:{' '}
-                    {formatMoney(selectedSale.discount)}
-                  </p>
-                  <div className="mt-3 space-y-1 text-sm">
-                    {selectedSale.items.map((item) => (
-                      <p key={item.id}>
-                        {item.productName} - {item.quantity} x {formatMoney(item.unitPrice)} ={' '}
-                        {formatMoney(item.total)}
-                      </p>
-                    ))}
-                  </div>
-                </article>
-              ) : null}
-            </div> : null}
-          </section>
+                {activeTab === 'sales' ? (
+          <SalesSection
+            addProductToSale={addProductToSale}
+            apiRequest={apiRequest}
+            auth={auth}
+            branches={branches}
+            buildUploadsUrl={buildUploadsUrl}
+            canManage={canManage}
+            enableEditForm={enableEditForm}
+            formatDate={formatDate}
+            formatMoney={formatMoney}
+            getAvailableStockInfo={getAvailableStockInfo}
+            isOwner={isOwner}
+            lastEditControl={lastEditControl}
+            loadSalesToday={loadSalesToday}
+            onCreateSale={onCreateSale}
+            onEnableEditWindow={onEnableEditWindow}
+            onFindSaleById={onFindSaleById}
+            onPatchSale={onPatchSale}
+            removeSaleItem={removeSaleItem}
+            resolveLookupCandidate={resolveLookupCandidate}
+            saleDetailId={saleDetailId}
+            saleDiscountPreview={saleDiscountPreview}
+            saleForm={saleForm}
+            saleLookup={saleLookup}
+            salePatchForm={salePatchForm}
+            saleSearchLoading={saleSearchLoading}
+            saleSearchMode={saleSearchMode}
+            saleSearchResults={saleSearchResults}
+            saleSubtotalPreview={saleSubtotalPreview}
+            saleTotalPreview={saleTotalPreview}
+            salesBranchId={salesBranchId}
+            salesToday={salesToday}
+            selectedSale={selectedSale}
+            setEnableEditForm={setEnableEditForm}
+            setSaleDetailId={setSaleDetailId}
+            setSaleForm={setSaleForm}
+            setSaleLookup={setSaleLookup}
+            setSalePatchForm={setSalePatchForm}
+            setSaleSearchMode={setSaleSearchMode}
+            setSaleSearchResults={setSaleSearchResults}
+            setSalesBranchId={setSalesBranchId}
+            setSelectedSale={setSelectedSale}
+            updateSaleItem={updateSaleItem}
+            withLoader={withLoader}
+          />
         ) : null}
 
-        {activeTab === 'users' && canManage ? (
-          <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-            <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-              <h3 className="mb-3 text-lg font-semibold">Usuarios</h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="text-slate-400">
-                    <tr>
-                      <th className="pb-2">Usuario</th>
-                      <th className="pb-2">Email</th>
-                      <th className="pb-2">Rol</th>
-                      <th className="pb-2">Sucursal</th>
-                      <th className="pb-2">Estado</th>
-                      <th className="pb-2">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => {
-                      const canManageThisUser = canManageTargetUser(user);
-                      return (
-                        <tr key={user.id} className="border-t border-slate-800">
-                          <td className="py-2">{user.username}</td>
-                          <td>{user.email}</td>
-                          <td>{user.role}</td>
-                          <td>{user.branch?.name ?? '-'}</td>
-                          <td>{user.isActive ? 'Activo' : 'Inactivo'}</td>
-                          <td className="flex gap-2 py-2">
-                            <button
-                              type="button"
-                              className="rounded-lg border border-cyan-500/40 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-45"
-                              onClick={() => startUserEdit(user)}
-                              disabled={!canManageThisUser}
-                              title={!canManageThisUser ? 'Solo OWNER puede editar OWNER' : undefined}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
-                              onClick={() => void toggleUserStatus(user)}
-                              disabled={!canManageThisUser}
-                              title={!canManageThisUser ? 'Solo OWNER puede activar/desactivar OWNER' : undefined}
-                            >
-                              {user.isActive ? 'Desactivar' : 'Activar'}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onCreateUser(event)}
-              >
-                <h3 className="text-lg font-semibold">Crear usuario</h3>
-                <input
-                  value={userForm.username}
-                  onChange={(event) =>
-                    setUserForm((prev) => ({ ...prev, username: event.target.value }))
-                  }
-                  placeholder="Username"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <input
-                  value={userForm.email}
-                  onChange={(event) =>
-                    setUserForm((prev) => ({ ...prev, email: event.target.value }))
-                  }
-                  type="email"
-                  placeholder="Email"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <input
-                  value={userForm.password}
-                  onChange={(event) =>
-                    setUserForm((prev) => ({ ...prev, password: event.target.value }))
-                  }
-                  type="password"
-                  placeholder="Password"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <select
-                  value={userForm.role}
-                  onChange={(event) =>
-                    setUserForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
-                  }
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                >
-                  {isOwner ? <option value="OWNER">OWNER</option> : null}
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="REGISTRADOR">REGISTRADOR</option>
-                </select>
-                {userForm.role === 'REGISTRADOR' ? (
-                  <select
-                    value={userForm.branchId}
-                    onChange={(event) =>
-                      setUserForm((prev) => ({ ...prev, branchId: event.target.value }))
-                    }
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Sucursal</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Crear usuario
-                </button>
-              </form>
-
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onUpdateUser(event)}
-              >
-                <h3 className="text-lg font-semibold">Editar usuario</h3>
-                <select
-                  value={userEditForm.id}
-                  onChange={(event) => {
-                    const selected = users.find((item) => item.id === event.target.value);
-                    if (!selected) {
-                      return;
-                    }
-
-                    startUserEdit(selected);
-                  }}
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                >
-                  <option value="">Selecciona usuario</option>
-                  {users
-                    .filter((item) => canManageTargetUser(item))
-                    .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.username} ({item.role})
-                    </option>
-                    ))}
-                </select>
-                <input
-                  value={userEditForm.username}
-                  onChange={(event) =>
-                    setUserEditForm((prev) => ({ ...prev, username: event.target.value }))
-                  }
-                  placeholder="Username"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <input
-                  value={userEditForm.email}
-                  onChange={(event) =>
-                    setUserEditForm((prev) => ({ ...prev, email: event.target.value }))
-                  }
-                  type="email"
-                  placeholder="Email"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <input
-                  value={userEditForm.password}
-                  onChange={(event) =>
-                    setUserEditForm((prev) => ({ ...prev, password: event.target.value }))
-                  }
-                  type="password"
-                  placeholder="Nuevo password (opcional)"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                />
-                <select
-                  value={userEditForm.role}
-                  onChange={(event) =>
-                    setUserEditForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
-                  }
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                >
-                  {isOwner ? <option value="OWNER">OWNER</option> : null}
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="REGISTRADOR">REGISTRADOR</option>
-                </select>
-                {userEditForm.role === 'REGISTRADOR' ? (
-                  <select
-                    value={userEditForm.branchId}
-                    onChange={(event) =>
-                      setUserEditForm((prev) => ({ ...prev, branchId: event.target.value }))
-                    }
-                    className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Sucursal</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Guardar cambios
-                </button>
-              </form>
-            </div>
-          </section>
+                {activeTab === 'users' && canManage ? (
+          <UsersSection
+            branches={branches}
+            canManageTargetUser={canManageTargetUser}
+            isOwner={isOwner}
+            onCreateUser={onCreateUser}
+            onUpdateUser={onUpdateUser}
+            setUserEditForm={setUserEditForm}
+            setUserForm={setUserForm}
+            startUserEdit={startUserEdit}
+            toggleUserStatus={toggleUserStatus}
+            userEditForm={userEditForm}
+            userForm={userForm}
+            users={users}
+          />
         ) : null}
 
-        {activeTab === 'branches' && canManage ? (
-          <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-            <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-              <h3 className="mb-3 text-lg font-semibold">Sucursales</h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="text-slate-400">
-                    <tr>
-                      <th className="pb-2">Nombre</th>
-                      <th className="pb-2">Estado</th>
-                      <th className="pb-2">Actualizado</th>
-                      <th className="pb-2">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {branches.map((branch) => (
-                      <tr key={branch.id} className="border-t border-slate-800">
-                        <td className="py-2">{branch.name}</td>
-                        <td>{branch.isActive ? 'Activa' : 'Inactiva'}</td>
-                        <td>{formatDate(branch.updatedAt)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800"
-                            onClick={() =>
-                              setBranchEdit({
-                                id: branch.id,
-                                name: branch.name,
-                                isActive: branch.isActive,
-                              })
-                            }
-                          >
-                            Editar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onCreateBranch(event)}
-              >
-                <h3 className="text-lg font-semibold">Nueva sucursal</h3>
-                <input
-                  value={branchForm.name}
-                  onChange={(event) =>
-                    setBranchForm((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  placeholder="Nombre"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  required
-                />
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Crear sucursal
-                </button>
-              </form>
-
-              <form
-                className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                onSubmit={(event) => void onEditBranch(event)}
-              >
-                <h3 className="text-lg font-semibold">Editar sucursal</h3>
-                <select
-                  value={branchEdit.id}
-                  onChange={(event) => {
-                    const selected = branches.find(
-                      (branch) => branch.id === event.target.value,
-                    );
-                    setBranchEdit({
-                      id: selected?.id ?? '',
-                      name: selected?.name ?? '',
-                      isActive: selected?.isActive ?? true,
-                    });
-                  }}
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                >
-                  <option value="">Selecciona sucursal</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={branchEdit.name}
-                  onChange={(event) =>
-                    setBranchEdit((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  placeholder="Nuevo nombre"
-                  className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                />
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={branchEdit.isActive}
-                    onChange={(event) =>
-                      setBranchEdit((prev) => ({ ...prev, isActive: event.target.checked }))
-                    }
-                  />
-                  Sucursal activa
-                </label>
-                <button
-                  type="submit"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Guardar cambios
-                </button>
-              </form>
-            </div>
-          </section>
+                {activeTab === 'branches' && canManage ? (
+          <BranchesSection
+            branchEdit={branchEdit}
+            branchForm={branchForm}
+            branches={branches}
+            formatDate={formatDate}
+            onCreateBranch={onCreateBranch}
+            onEditBranch={onEditBranch}
+            setBranchEdit={setBranchEdit}
+            setBranchForm={setBranchForm}
+          />
         ) : null}
 
-        {activeTab === 'reports' && isOwner ? (
-          <section className="space-y-4">
-            <div className="grid gap-3 ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5 md:grid-cols-3">
-              <input
-                type="date"
-                value={reportDate}
-                onChange={(event) => setReportDate(event.target.value)}
-                className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              />
-              <select
-                value={reportBranchId}
-                onChange={(event) => setReportBranchId(event.target.value)}
-                className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              >
-                <option value="">Todas las sucursales</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-                  onClick={() => void loadReport('daily')}
-                >
-                  Diario
-                </button>
-                <button
-                  type="button"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-                  onClick={() => void loadReport('weekly')}
-                >
-                  Semanal
-                </button>
-                <button
-                  type="button"
-                  className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-                  onClick={() => void loadReport('monthly')}
-                >
-                  Mensual
-                </button>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {[reportDaily, reportWeekly, reportMonthly].map((report, index) => {
-                const label = index === 0 ? 'Diario' : index === 1 ? 'Semanal' : 'Mensual';
-                return (
-                  <article
-                    key={label}
-                    className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5"
-                  >
-                    <h3 className="text-lg font-semibold">Reporte {label}</h3>
-                    {report ? (
-                      <div className="mt-3 space-y-1 text-sm">
-                        <p>Inicio: {formatDate(report.periodStart)}</p>
-                        <p>Fin: {formatDate(report.periodEnd)}</p>
-                        <p>Ingresos: {formatMoney(report.incomeTotal)}</p>
-                        <p>Salidas valorizadas: {formatMoney(report.outputTotal)}</p>
-                        <p>Utilidad neta: {formatMoney(report.netTotal)}</p>
-                        <p>Ventas: {report.salesCount}</p>
-                        <p>Movimientos OUT: {report.movementsCount}</p>
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-slate-400">
-                        Aun no se cargo este periodo.
-                      </p>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+                {activeTab === 'reports' && isOwner ? (
+          <ReportsSection
+            branches={branches}
+            formatDate={formatDate}
+            formatMoney={formatMoney}
+            loadReport={loadReport}
+            reportBranchId={reportBranchId}
+            reportDaily={reportDaily}
+            reportDate={reportDate}
+            reportMonthly={reportMonthly}
+            reportWeekly={reportWeekly}
+            setReportBranchId={setReportBranchId}
+            setReportDate={setReportDate}
+          />
         ) : null}
       </div>
     </div>
   );
 };
+
+
+
+
+
+
 
 
 

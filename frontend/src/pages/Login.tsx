@@ -59,12 +59,12 @@ export const Login = () => {
       }`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_18%,rgba(14,165,233,0.25),transparent_38%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.3),transparent_40%),radial-gradient(circle_at_50%_95%,rgba(16,185,129,0.18),transparent_40%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(148,163,184,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.24)_1px,transparent_1px)] [background-size:42px_42px]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.18] bg-[linear-gradient(rgba(148,163,184,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.24)_1px,transparent_1px)] [background-size:42px_42px]" />
       <div className="pointer-events-none absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />
       <div className="pointer-events-none absolute -right-12 bottom-0 h-80 w-80 rounded-full bg-blue-600/30 blur-3xl" />
 
-      <div className="relative grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-slate-700/60 bg-slate-900/85 shadow-[0_36px_95px_-35px_rgba(2,6,23,0.95)] backdrop-blur-md md:grid-cols-[1.08fr_1fr]">
-        <div className="hidden border-r border-slate-700/60 bg-gradient-to-br from-cyan-600/90 via-sky-500/80 to-blue-700/90 p-10 text-white md:flex md:flex-col md:justify-between">
+      <div className="relative grid w-full max-w-6xl overflow-hidden rounded-4xl border border-slate-700/60 bg-slate-900/85 shadow-[0_36px_95px_-35px_rgba(2,6,23,0.95)] backdrop-blur-md md:grid-cols-[1.08fr_1fr]">
+        <div className="hidden border-r border-slate-700/60 bg-linear-to-br from-cyan-600/90 via-sky-500/80 to-blue-700/90 p-10 text-white md:flex md:flex-col md:justify-between">
           <div className="space-y-6">
             <span className="inline-flex rounded-full border border-white/45 bg-white/15 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.24em]">
               Inventario + Ventas
