@@ -1,0 +1,213 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --ui-radius: 1rem;
+  --ui-shadow: 0 22px 45px -28px rgba(8, 47, 73, 0.4);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Sora", "Manrope", "Segoe UI", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+body.theme-dark {
+  color-scheme: dark;
+}
+
+body.theme-light {
+  color-scheme: light;
+}
+
+.dashboard-app .ui-card {
+  border-radius: 1.35rem;
+  box-shadow: var(--ui-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-app .ui-card:hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-app .dashboard-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-app .dashboard-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, rgba(14, 165, 233, 0.12), transparent 36%, rgba(56, 189, 248, 0.08));
+}
+
+.dashboard-app .dashboard-hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.45), transparent);
+}
+
+.dashboard-app .ui-form-card {
+  padding-top: 1.45rem;
+  padding-bottom: 1.45rem;
+}
+
+.dashboard-app .ui-control {
+  border-radius: var(--ui-radius);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.dashboard-app .ui-control:focus {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.75) !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+}
+
+.dashboard-app .ui-primary-btn,
+.dashboard-app .ui-secondary-btn,
+.dashboard-app .ui-danger-btn {
+  border-radius: var(--ui-radius);
+  transition: transform 0.16s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-app .ui-primary-btn:hover,
+.dashboard-app .ui-secondary-btn:hover,
+.dashboard-app .ui-danger-btn:hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-app .ui-primary-btn {
+  box-shadow: 0 14px 30px -20px rgba(8, 145, 178, 0.8);
+}
+
+.dashboard-app .ui-secondary-btn {
+  background-color: rgba(30, 41, 59, 0.44);
+}
+
+.dashboard-app .ui-danger-btn {
+  box-shadow: 0 12px 24px -18px rgba(248, 113, 113, 0.75);
+}
+
+body.theme-light [class*="bg-slate-950"] {
+  background-color: rgba(241, 245, 249, 0.96) !important;
+}
+
+body.theme-light [class*="bg-slate-900"] {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.theme-light [class*="bg-slate-800"] {
+  background-color: rgba(248, 250, 252, 0.95) !important;
+}
+
+body.theme-light [class*="border-slate-800"],
+body.theme-light [class*="border-slate-700"] {
+  border-color: #cbd5e1 !important;
+}
+
+body.theme-light [class*="text-slate-100"],
+body.theme-light [class*="text-slate-200"] {
+  color: #0f172a !important;
+}
+
+body.theme-light [class*="text-slate-300"] {
+  color: #1e293b !important;
+}
+
+body.theme-light [class*="text-slate-400"],
+body.theme-light [class*="text-slate-500"],
+body.theme-light [class*="placeholder:text-slate-500"] {
+  color: #334155 !important;
+}
+
+body.theme-light [class*="text-cyan-100"],
+body.theme-light [class*="text-cyan-300"],
+body.theme-light [class*="text-cyan-400"] {
+  color: #0f766e !important;
+}
+
+body.theme-light [class*="text-emerald-200"],
+body.theme-light [class*="text-emerald-300"] {
+  color: #166534 !important;
+}
+
+body.theme-light [class*="text-amber-300"] {
+  color: #92400e !important;
+}
+
+body.theme-light [class*="bg-emerald-500/10"] {
+  background-color: rgba(220, 252, 231, 0.9) !important;
+}
+
+body.theme-light [class*="bg-cyan-500/10"] {
+  background-color: rgba(207, 250, 254, 0.9) !important;
+}
+
+body.theme-light [class*="bg-red-500/10"] {
+  background-color: rgba(254, 226, 226, 0.88) !important;
+}
+
+body.theme-light [class*="border-emerald-400/40"] {
+  border-color: rgba(34, 197, 94, 0.45) !important;
+}
+
+body.theme-light [class*="border-cyan-400/30"] {
+  border-color: rgba(14, 116, 144, 0.45) !important;
+}
+
+body.theme-light [class*="border-red-400/40"] {
+  border-color: rgba(239, 68, 68, 0.45) !important;
+}
+
+body.theme-light input::placeholder,
+body.theme-light textarea::placeholder {
+  color: #64748b;
+}
+
+body.theme-light .dashboard-app .ui-card {
+  box-shadow: 0 20px 45px -30px rgba(30, 41, 59, 0.25);
+}
+
+body.theme-light .dashboard-app .dashboard-hero::before {
+  background: linear-gradient(
+    110deg,
+    rgba(14, 165, 233, 0.12),
+    rgba(255, 255, 255, 0.35) 38%,
+    rgba(56, 189, 248, 0.1)
+  );
+}
+
+body.theme-light .dashboard-app .ui-secondary-btn {
+  background-color: rgba(148, 163, 184, 0.15);
+}
+
+body.theme-light .dashboard-app .ui-primary-btn {
+  box-shadow: 0 14px 28px -20px rgba(14, 116, 144, 0.55);
+}
+
+@media (max-width: 768px) {
+  .dashboard-app .ui-card {
+    border-radius: 1.1rem;
+  }
+}

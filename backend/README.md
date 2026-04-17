@@ -94,13 +94,13 @@ copy .env.example .env
 Contenido esperado:
 
 ```env
-PORT=3011
+PORT=3012
 NODE_ENV=development
 DATABASE_URL=postgresql://inventory_user:inventory_pass_2026@localhost:55439/inventory_db?schema=public
 JWT_SECRET=super_secret_jwt_key
 JWT_EXPIRES_IN=1d
 UPLOAD_DIR=uploads
-APP_URL=http://localhost:3011
+APP_URL=http://localhost:3012
 FRONTEND_URL=http://localhost:5177
 ```
 
@@ -144,10 +144,10 @@ npm run start:dev
 
 Accesos locales:
 
-- API: `http://localhost:3011/api`
-- Swagger UI: `http://localhost:3011/docs`
-- OpenAPI JSON: `http://localhost:3011/docs-json`
-- Health: `http://localhost:3011/api/health`
+- API: `http://localhost:3012/api`
+- Swagger UI: `http://localhost:3012/docs`
+- OpenAPI JSON: `http://localhost:3012/docs-json`
+- Health: `http://localhost:3012/api/health`
 
 ## Credenciales iniciales de prueba
 
@@ -180,7 +180,7 @@ Swagger ya está configurado con Bearer JWT.
 
 Flujo sugerido:
 
-1. Abrir `http://localhost:3011/docs`
+1. Abrir `http://localhost:3012/docs`
 2. Ejecutar `POST /api/auth/login`
 3. Copiar el `accessToken`
 4. Pulsar `Authorize`
@@ -270,7 +270,7 @@ npm run test:e2e
 7. Ejecutar `npm run prisma:seed`
 8. Iniciar el backend con `npm run start:dev`
 
-Mientras los puertos `3011` y `55439` estén libres, no deberías cambiar nada.
+Mientras los puertos `3012` y `55439` estén libres, no deberías cambiar nada.
 
 ## Integración futura con React
 
@@ -297,7 +297,7 @@ Mientras los puertos `3011` y `55439` estén libres, no deberías cambiar nada.
 ### El backend no arranca
 
 - Ejecuta `npm install` nuevamente si faltan dependencias.
-- Verifica que el puerto `3011` no esté ocupado.
+- Verifica que el puerto `3012` no esté ocupado.
 - Revisa que el `.env` tenga todas las variables requeridas.
 
 ### Swagger abre, pero fallan endpoints protegidos
