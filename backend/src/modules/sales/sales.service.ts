@@ -73,29 +73,12 @@ export class SalesService {
       const productMap = new Map(
         products.map((product) => [product.id, product]),
       );
-      const stocks = await tx.stock.findMany({
-        where: {
-          branchId,
-          productId: {
-            in: dto.items.map((item) => item.productId),
-          },
-        },
-      });
-      const stockMap = new Map(stocks.map((stock) => [stock.productId, stock]));
       const lineItems = dto.items.map((item) => {
         const product = productMap.get(item.productId);
 
         if (!product || !product.isActive) {
           throw new BadRequestException(
             'La venta contiene productos inexistentes o inactivos.',
-          );
-        }
-
-        const stock = stockMap.get(item.productId);
-
-        if (!stock || stock.quantity.lessThan(item.quantity)) {
-          throw new BadRequestException(
-            `Stock insuficiente para el producto ${product.name}.`,
           );
         }
 
@@ -155,11 +138,12 @@ export class SalesService {
       });
 
       for (const item of lineItems) {
-        await tx.stock.update({
+        const stockUpdate = await tx.stock.updateMany({
           where: {
-            branchId_productId: {
-              branchId,
-              productId: item.product.id,
+            branchId,
+            productId: item.product.id,
+            quantity: {
+              gte: item.quantity,
             },
           },
           data: {
@@ -168,6 +152,12 @@ export class SalesService {
             },
           },
         });
+
+        if (stockUpdate.count !== 1) {
+          throw new BadRequestException(
+            `Stock insuficiente para el producto ${item.product.name}.`,
+          );
+        }
 
         await tx.inventoryMovement.create({
           data: {

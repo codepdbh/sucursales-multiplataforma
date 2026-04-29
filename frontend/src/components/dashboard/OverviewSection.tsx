@@ -1,6 +1,8 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { AlertTriangle, Boxes, ReceiptText, ShoppingBag, WalletCards } from 'lucide-react';
 
 import type { StockItem } from '../../lib/types';
+import { Badge, DataTable, EmptyState, Panel, SectionTitle } from './ui';
 
 export interface OverviewPieSlice {
   label: string;
@@ -32,7 +34,7 @@ interface OverviewSectionProps {
 function buildPieGradient(slices: OverviewPieSlice[]): string {
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
   if (!total) {
-    return 'conic-gradient(rgba(148,163,184,0.25) 0% 100%)';
+    return 'conic-gradient(var(--surface-strong) 0% 100%)';
   }
 
   let current = 0;
@@ -44,6 +46,57 @@ function buildPieGradient(slices: OverviewPieSlice[]): string {
   });
 
   return `conic-gradient(${ranges.join(',')})`;
+}
+
+interface MetricCardProps {
+  icon: ReactNode;
+  label: string;
+  meta: string;
+  value: string;
+}
+
+function MetricCard({ icon, label, meta, value }: MetricCardProps) {
+  return (
+    <Panel className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-[color:var(--text-muted)]">{label}</p>
+          <p className="mt-2 text-2xl font-extrabold text-[color:var(--text-strong)]">{value}</p>
+        </div>
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]">
+          {icon}
+        </span>
+      </div>
+      <p className="mt-3 text-xs font-semibold text-[color:var(--text-muted)]">{meta}</p>
+    </Panel>
+  );
+}
+
+function DonutChart({ slices }: { slices: OverviewPieSlice[] }) {
+  const style: CSSProperties = {
+    background: buildPieGradient(slices),
+  };
+
+  return (
+    <div className="flex items-center gap-4">
+      <div className="grid h-28 w-28 shrink-0 place-items-center rounded-full" style={style}>
+        <div className="h-16 w-16 rounded-full bg-[color:var(--surface)]" />
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        {slices.length ? (
+          slices.map((slice) => (
+            <div className="flex items-center gap-2 text-xs font-semibold" key={slice.label}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
+              <span className="truncate text-[color:var(--text)]">{slice.label}</span>
+              <span className="ml-auto text-[color:var(--text-muted)]">{slice.value}</span>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-[color:var(--text-muted)]">Sin datos</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function OverviewSection({
@@ -60,154 +113,126 @@ export function OverviewSection({
   totalTicketsToday,
   unitsSoldToday,
 }: OverviewSectionProps) {
-  const branchPieStyle: CSSProperties = {
-    background: buildPieGradient(branchPieSlices),
-  };
-  const productPieStyle: CSSProperties = {
-    background: buildPieGradient(productPieSlices),
-  };
-
   return (
-    <section className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Productos</p>
-          <h3 className="mt-2 text-3xl font-bold">{totalProducts}</h3>
-          <p className="text-xs text-slate-500">Productos visibles en el sistema.</p>
-        </article>
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Registros de stock</p>
-          <h3 className="mt-2 text-3xl font-bold">{totalStockItems}</h3>
-          <p className="text-xs text-slate-500">Stock actual segun filtros de sucursal.</p>
-        </article>
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Ventas del dia</p>
-          <h3 className="mt-2 text-3xl font-bold">{formatMoney(totalSalesToday)}</h3>
-          <p className="text-xs text-slate-500">{totalTicketsToday} tickets emitidos hoy.</p>
-        </article>
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Ticket promedio</p>
-          <h3 className="mt-2 text-3xl font-bold">{formatMoney(averageTicketToday)}</h3>
-          <p className="text-xs text-slate-500">Unidades vendidas hoy: {unitsSoldToday}</p>
-        </article>
+    <section className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          icon={<ShoppingBag className="h-5 w-5" />}
+          label="Productos"
+          meta="Catalogo visible"
+          value={String(totalProducts)}
+        />
+        <MetricCard
+          icon={<Boxes className="h-5 w-5" />}
+          label="Registros de stock"
+          meta="Segun filtros activos"
+          value={String(totalStockItems)}
+        />
+        <MetricCard
+          icon={<WalletCards className="h-5 w-5" />}
+          label="Ventas del dia"
+          meta={`${totalTicketsToday} tickets`}
+          value={formatMoney(totalSalesToday)}
+        />
+        <MetricCard
+          icon={<ReceiptText className="h-5 w-5" />}
+          label="Ticket promedio"
+          meta={`${unitsSoldToday} unidades vendidas`}
+          value={formatMoney(averageTicketToday)}
+        />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-lg font-semibold">Top productos vendidos (hoy)</h3>
-            <span className="text-xs text-slate-400">Por cantidad</span>
-          </div>
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.95fr_0.95fr]">
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Ventas" title="Productos con mas movimiento" />
           {topProductsToday.length ? (
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2">
               {topProductsToday.map((item, index) => (
                 <div
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2"
                   key={item.name}
-                  className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2"
                 >
-                  <p className="truncate text-sm">
-                    <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-xs text-cyan-300">
-                      {index + 1}
-                    </span>
-                    {item.name}
-                  </p>
-                  <p className="text-right text-sm font-semibold text-cyan-300">{item.quantity} u</p>
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-[color:var(--surface)] text-xs font-extrabold text-[color:var(--brand-strong)]">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-[color:var(--text-strong)]">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-[color:var(--text-muted)]">
+                      {formatMoney(item.income)}
+                    </p>
+                  </div>
+                  <Badge tone="blue">{item.quantity} u</Badge>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-slate-400">
-              Aun no hay ventas para calcular productos mas vendidos.
-            </p>
+            <div className="mt-4">
+              <EmptyState>No hay ventas registradas para el dia.</EmptyState>
+            </div>
           )}
-        </article>
+        </Panel>
 
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <h3 className="text-lg font-semibold">Ventas por sucursal</h3>
-          <p className="text-xs text-slate-400">Distribucion de ingresos del dia</p>
-          <div className="mt-4 flex items-center gap-4">
-            <div
-              className="h-32 w-32 rounded-full border border-slate-700"
-              style={branchPieStyle}
-              aria-label="Grafico de torta de ventas por sucursal"
-            />
-            <div className="min-w-0 flex-1 space-y-1">
-              {branchPieSlices.length ? (
-                branchPieSlices.map((slice) => (
-                  <div key={slice.label} className="flex items-center gap-2 text-xs">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="truncate text-slate-300">{slice.label}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-400">Sin datos de ventas hoy.</p>
-              )}
-            </div>
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Sucursales" title="Ingresos del dia" />
+          <div className="mt-4">
+            <DonutChart slices={branchPieSlices} />
           </div>
-          <p className="mt-3 text-sm text-slate-300">
-            Sucursal lider: <span className="font-semibold text-cyan-300">{topBranchTodayName ?? 'N/A'}</span>
-          </p>
-        </article>
+          <div className="mt-4 flex items-center justify-between rounded-lg bg-[color:var(--surface-muted)] px-3 py-2">
+            <span className="text-sm font-bold text-[color:var(--text-muted)]">Lider</span>
+            <span className="text-sm font-extrabold text-[color:var(--text-strong)]">
+              {topBranchTodayName ?? 'N/A'}
+            </span>
+          </div>
+        </Panel>
 
-        <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <h3 className="text-lg font-semibold">Mix de productos (hoy)</h3>
-          <p className="text-xs text-slate-400">Participacion por unidades vendidas</p>
-          <div className="mt-4 flex items-center gap-4">
-            <div
-              className="h-32 w-32 rounded-full border border-slate-700"
-              style={productPieStyle}
-              aria-label="Grafico de torta de productos vendidos"
-            />
-            <div className="min-w-0 flex-1 space-y-1">
-              {productPieSlices.length ? (
-                productPieSlices.map((slice) => (
-                  <div key={slice.label} className="flex items-center gap-2 text-xs">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="truncate text-slate-300">{slice.label}</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-400">Sin productos vendidos hoy.</p>
-              )}
-            </div>
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Mix" title="Unidades por producto" />
+          <div className="mt-4">
+            <DonutChart slices={productPieSlices} />
           </div>
-        </article>
+        </Panel>
       </div>
 
-      <article className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="text-lg font-semibold">Alertas de stock bajo</h3>
-        <p className="text-xs text-slate-400">Productos con 5 unidades o menos</p>
+      <Panel className="p-5">
+        <SectionTitle
+          actions={<Badge tone={lowStockRows.length ? 'amber' : 'green'}>{lowStockRows.length}</Badge>}
+          eyebrow="Inventario"
+          title="Alertas de stock bajo"
+        />
         {lowStockRows.length ? (
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-slate-400">
+          <div className="mt-4">
+            <DataTable>
+              <thead>
                 <tr>
-                  <th className="pb-2">Sucursal</th>
-                  <th className="pb-2">Producto</th>
-                  <th className="pb-2">Cantidad</th>
+                  <th>Sucursal</th>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
                 </tr>
               </thead>
               <tbody>
                 {lowStockRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-800">
-                    <td className="py-2">{row.branchName}</td>
-                    <td>{row.productName}</td>
-                    <td className="font-semibold text-amber-300">{row.quantity}</td>
+                  <tr key={row.id}>
+                    <td>{row.branchName}</td>
+                    <td className="font-bold text-[color:var(--text-strong)]">{row.productName}</td>
+                    <td>
+                      <Badge tone="amber">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {row.quantity}
+                      </Badge>
+                    </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
         ) : (
-          <p className="mt-3 text-sm text-slate-400">No hay alertas de stock bajo con los datos actuales.</p>
+          <div className="mt-4">
+            <EmptyState>Sin alertas con los datos actuales.</EmptyState>
+          </div>
         )}
-      </article>
+      </Panel>
     </section>
   );
 }

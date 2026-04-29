@@ -152,6 +152,38 @@ export class ProductsService {
     return this.toResponse(product);
   }
 
+  async remove(
+    actor: AuthenticatedUser,
+    id: string,
+  ): Promise<ProductResponseDto> {
+    const current = await this.prisma.product.findUniqueOrThrow({
+      where: { id },
+    });
+
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: {
+        isActive: false,
+      },
+      include: {
+        brand: true,
+      },
+    });
+
+    await this.auditLogService.log({
+      userId: actor.sub,
+      action: 'DELETE_PRODUCT',
+      entity: 'Product',
+      entityId: product.id,
+      metadata: {
+        name: current.name,
+        softDelete: true,
+      },
+    });
+
+    return this.toResponse(product);
+  }
+
   async uploadPhoto(
     actor: AuthenticatedUser,
     id: string,
@@ -235,6 +267,7 @@ export class ProductsService {
         const quantity = this.parseCsvNumber(
           this.pickCsvValue(row, ['cantidad', 'Cantidad']),
           `cantidad en fila ${index + 1}`,
+          0,
         );
         const priceValue = this.pickCsvValue(row, [
           'precio',
@@ -270,7 +303,7 @@ export class ProductsService {
 
         const defaultPrice = priceValue
           ? toDecimal(
-              this.parseCsvNumber(priceValue, `precio en fila ${index + 1}`),
+              this.parseCsvNumber(priceValue, `precio en fila ${index + 1}`, 0),
             )
           : toDecimal(existingProduct?.defaultPrice ?? 0);
 
@@ -407,11 +440,21 @@ export class ProductsService {
     return undefined;
   }
 
-  private parseCsvNumber(value: string | undefined, fieldName: string): number {
+  private parseCsvNumber(
+    value: string | undefined,
+    fieldName: string,
+    min?: number,
+  ): number {
     const parsed = Number(value ?? 0);
 
     if (Number.isNaN(parsed)) {
       throw new BadRequestException(`Valor inválido para ${fieldName}.`);
+    }
+
+    if (min !== undefined && parsed < min) {
+      throw new BadRequestException(
+        `El valor de ${fieldName} debe ser mayor o igual a ${min}.`,
+      );
     }
 
     return parsed;

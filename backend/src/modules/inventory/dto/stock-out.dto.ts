@@ -22,6 +22,7 @@ export class StockOutDto {
   @ApiPropertyOptional({ example: 8.5 })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   unitPrice?: number;
 
   @ApiPropertyOptional({ example: 'Salida operativa' })

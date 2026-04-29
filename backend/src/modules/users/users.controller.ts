@@ -37,15 +37,18 @@ export class UsersController {
   @Get()
   @ApiOperation({ summary: 'Listar usuarios' })
   @ApiOkResponse({ type: UserResponseDto, isArray: true })
-  findAll(): Promise<UserResponseDto[]> {
-    return this.usersService.findAll();
+  findAll(@CurrentUser() actor: AuthenticatedUser): Promise<UserResponseDto[]> {
+    return this.usersService.findAll(actor);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener usuario por ID' })
   @ApiOkResponse({ type: UserResponseDto })
-  findOne(@Param('id') id: string): Promise<UserResponseDto> {
-    return this.usersService.findOne(id);
+  findOne(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<UserResponseDto> {
+    return this.usersService.findOne(actor, id);
   }
 
   @Patch(':id')

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -88,6 +89,17 @@ export class ProductsController {
     @Body() dto: UpdateProductDto,
   ): Promise<ProductResponseDto> {
     return this.productsService.update(actor, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Eliminar producto' })
+  @ApiOkResponse({ type: ProductResponseDto })
+  remove(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<ProductResponseDto> {
+    return this.productsService.remove(actor, id);
   }
 
   @Post(':id/photo')

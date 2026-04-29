@@ -98,30 +98,16 @@ export class InventoryService {
   ): Promise<InventoryMovementResponseDto> {
     const branchId = resolveOperationalBranchId(actor, dto.branchId);
     const product = await this.ensureBranchAndProduct(branchId, dto.productId);
-    const currentStock = await this.prisma.stock.findUnique({
-      where: {
-        branchId_productId: {
-          branchId,
-          productId: dto.productId,
-        },
-      },
-    });
-
-    if (!currentStock || currentStock.quantity.lessThan(dto.quantity)) {
-      throw new BadRequestException(
-        'Stock insuficiente para realizar la salida.',
-      );
-    }
-
     const unitPrice = toDecimal(
       dto.unitPrice ?? decimalToNumber(product.defaultPrice) ?? 0,
     );
     const movement = await this.prisma.$transaction(async (tx) => {
-      await tx.stock.update({
+      const stockUpdate = await tx.stock.updateMany({
         where: {
-          branchId_productId: {
-            branchId,
-            productId: dto.productId,
+          branchId,
+          productId: dto.productId,
+          quantity: {
+            gte: toDecimal(dto.quantity),
           },
         },
         data: {
@@ -130,6 +116,12 @@ export class InventoryService {
           },
         },
       });
+
+      if (stockUpdate.count !== 1) {
+        throw new BadRequestException(
+          'Stock insuficiente para realizar la salida.',
+        );
+      }
 
       return tx.inventoryMovement.create({
         data: {

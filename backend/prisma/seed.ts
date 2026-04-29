@@ -39,7 +39,7 @@ async function main() {
     create: { name: 'Sucursal San Pedro', isActive: true },
   });
 
-  await prisma.branch.upsert({
+  const cruceDeVillas = await prisma.branch.upsert({
     where: { name: 'Sucursal Cruce de Villas' },
     update: { isActive: true },
     create: { name: 'Sucursal Cruce de Villas', isActive: true },
@@ -72,6 +72,14 @@ async function main() {
     password: 'RegSp12345!',
     role: UserRole.REGISTRADOR,
     branchId: sanPedro.id,
+  });
+
+  await upsertUser({
+    username: 'regcv',
+    email: 'regcv@sistema.local',
+    password: 'RegCv12345!',
+    role: UserRole.REGISTRADOR,
+    branchId: cruceDeVillas.id,
   });
 }
 

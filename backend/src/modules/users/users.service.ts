@@ -26,7 +26,8 @@ export class UsersService {
     dto: CreateUserDto,
   ): Promise<UserResponseDto> {
     this.assertCanCreateRole(actor.role, dto.role);
-    await this.validateBranchAssignment(dto.role, dto.branchId);
+    const branchId = this.normalizeBranchId(dto.branchId);
+    await this.validateBranchAssignment(dto.role, branchId);
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
@@ -35,7 +36,7 @@ export class UsersService {
         email: dto.email.trim().toLowerCase(),
         passwordHash,
         role: dto.role,
-        branchId: dto.role === UserRole.REGISTRADOR ? dto.branchId : null,
+        branchId: this.roleCanHaveBranch(dto.role) ? (branchId ?? null) : null,
       },
       include: {
         branch: true,
@@ -56,8 +57,16 @@ export class UsersService {
     return this.toResponse(user);
   }
 
-  async findAll(): Promise<UserResponseDto[]> {
+  async findAll(actor: AuthenticatedUser): Promise<UserResponseDto[]> {
     const users = await this.prisma.user.findMany({
+      where:
+        actor.role === UserRole.ADMIN
+          ? {
+              role: {
+                not: UserRole.OWNER,
+              },
+            }
+          : undefined,
       include: {
         branch: true,
       },
@@ -69,13 +78,18 @@ export class UsersService {
     return users.map((user) => this.toResponse(user));
   }
 
-  async findOne(id: string): Promise<UserResponseDto> {
+  async findOne(
+    actor: AuthenticatedUser,
+    id: string,
+  ): Promise<UserResponseDto> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id },
       include: {
         branch: true,
       },
     });
+
+    this.assertCanViewUser(actor.role, user.role);
 
     return this.toResponse(user);
   }
@@ -95,10 +109,11 @@ export class UsersService {
     this.assertCanManageUser(actor.role, target.role);
 
     const nextRole = dto.role ?? target.role;
-    await this.validateBranchAssignment(
-      nextRole,
-      dto.branchId ?? target.branchId ?? undefined,
-    );
+    const nextBranchId =
+      dto.branchId !== undefined
+        ? this.normalizeBranchId(dto.branchId)
+        : (target.branchId ?? undefined);
+    await this.validateBranchAssignment(nextRole, nextBranchId);
 
     const user = await this.prisma.user.update({
       where: { id },
@@ -109,10 +124,9 @@ export class UsersService {
           ? await bcrypt.hash(dto.password, 10)
           : undefined,
         role: dto.role,
-        branchId:
-          nextRole === UserRole.REGISTRADOR
-            ? (dto.branchId ?? target.branchId)
-            : null,
+        branchId: this.roleCanHaveBranch(nextRole)
+          ? (nextBranchId ?? null)
+          : null,
       },
       include: {
         branch: true,
@@ -188,6 +202,15 @@ export class UsersService {
     }
   }
 
+  private normalizeBranchId(branchId?: string | null): string | undefined {
+    const normalized = branchId?.trim();
+    return normalized || undefined;
+  }
+
+  private roleCanHaveBranch(role: UserRole): boolean {
+    return role === UserRole.ADMIN || role === UserRole.REGISTRADOR;
+  }
+
   private assertCanCreateRole(actorRole: UserRole, targetRole: UserRole): void {
     if (actorRole === UserRole.OWNER) {
       return;
@@ -213,6 +236,20 @@ export class UsersService {
 
     throw new ForbiddenException(
       'No tiene permisos para administrar ese usuario.',
+    );
+  }
+
+  private assertCanViewUser(actorRole: UserRole, targetRole: UserRole): void {
+    if (actorRole === UserRole.OWNER) {
+      return;
+    }
+
+    if (actorRole === UserRole.ADMIN && targetRole !== UserRole.OWNER) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'No tiene permisos para consultar ese usuario.',
     );
   }
 

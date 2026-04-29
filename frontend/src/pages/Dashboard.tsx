@@ -36,13 +36,13 @@ type DashboardTab =
   | 'reports';
 
 const TAB_HINTS: Record<DashboardTab, string> = {
-  overview: 'Resumen rapido de productos, stock y ventas del dia.',
-  products: 'Crea, edita e importa productos; usa filtros para encontrar mas rapido.',
-  inventory: 'Registra entradas, salidas y ajustes para mantener stock confiable.',
-  sales: 'Busca productos, arma la venta y confirma en un solo flujo.',
-  users: 'Gestiona accesos por rol y sucursal para cada usuario.',
-  branches: 'Administra sucursales activas y su configuracion operativa.',
-  reports: 'Consulta liquidaciones diarias, semanales y mensuales por sucursal.',
+  overview: 'Resumen operativo',
+  products: 'Catalogo y carga masiva',
+  inventory: 'Stock y movimientos',
+  sales: 'Registro y correcciones',
+  users: 'Roles y accesos',
+  branches: 'Operacion por sucursal',
+  reports: 'Liquidaciones',
 };
 
 interface SaleCartItem {
@@ -55,6 +55,7 @@ interface SaleCartItem {
 }
 
 const PIE_COLORS = ['#06b6d4', '#14b8a6', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+const LIVE_REFRESH_INTERVAL_MS = 5_000;
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat('es-BO', {
@@ -105,6 +106,7 @@ function getTodayDateString(): string {
 export const Dashboard = () => {
   const auth = useAuth();
   const stockFilterHydrated = useRef(false);
+  const liveRefreshInFlight = useRef(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(getInitialTheme);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [loading, setLoading] = useState(false);
@@ -280,6 +282,14 @@ export const Dashboard = () => {
     return branchId || undefined;
   }
 
+  function getUserBranchPayload(userRole: UserRole, branchId: string): string | undefined {
+    if (userRole === 'OWNER') {
+      return undefined;
+    }
+
+    return branchId || undefined;
+  }
+
   const getActiveSaleBranchId = useCallback((): string | undefined => {
     if (role === 'REGISTRADOR') {
       return auth.user?.branch?.id ?? undefined;
@@ -447,10 +457,64 @@ export const Dashboard = () => {
     });
   }
 
+  async function loadLiveData(): Promise<void> {
+    if (liveRefreshInFlight.current) {
+      return;
+    }
+
+    liveRefreshInFlight.current = true;
+
+    try {
+      await Promise.all([
+        loadProducts(),
+        loadBranches(),
+        loadStock(),
+        loadSalesToday(),
+        loadUsers(),
+        loadMovements(),
+        isOwner ? loadReports() : Promise.resolve(),
+      ]);
+    } catch {
+      // Silent refresh should not interrupt active work on the dashboard.
+    } finally {
+      liveRefreshInFlight.current = false;
+    }
+  }
+
   useEffect(() => {
     void loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      void loadLiveData();
+    }, LIVE_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(timerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canManage,
+    isOwner,
+    movementBranchId,
+    productActiveFilter,
+    productSearch,
+    productSiatFilter,
+    reportBranchId,
+    reportDate,
+    role,
+    salesBranchId,
+    stockBranchId,
+  ]);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void loadProducts();
+    }, 250);
+
+    return () => window.clearTimeout(timerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productActiveFilter, productSearch, productSiatFilter]);
 
   useEffect(() => {
     if (!canManage) {
@@ -476,9 +540,36 @@ export const Dashboard = () => {
       return;
     }
 
-    void withLoader(loadStock);
+    void loadStock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockBranchId, canManage]);
+
+  useEffect(() => {
+    if (!canManage) {
+      return;
+    }
+
+    void loadSalesToday();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salesBranchId, canManage]);
+
+  useEffect(() => {
+    if (!isOwner) {
+      return;
+    }
+
+    void loadMovements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movementBranchId, isOwner]);
+
+  useEffect(() => {
+    if (!isOwner) {
+      return;
+    }
+
+    void loadReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportBranchId, reportDate, isOwner]);
 
   useEffect(() => {
     const lookup = saleLookup.trim().toLowerCase();
@@ -599,6 +690,39 @@ export const Dashboard = () => {
       isActive: product.isActive,
     });
     setActiveTab('products');
+  }
+
+  async function onDeleteProduct(product: Product): Promise<void> {
+    await withLoader(async () => {
+      await apiRequest<Product>(`/products/${product.id}`, {
+        method: 'DELETE',
+      });
+      if (editingProductId === product.id) {
+        setEditingProductId(null);
+        setProductForm({
+          brandName: '',
+          name: '',
+          barcode: '',
+          defaultPrice: '',
+          requiresWeight: false,
+          siatEnabled: false,
+          isActive: true,
+        });
+      }
+      await Promise.all([loadProducts(), loadStock()]);
+    }, 'Producto eliminado del catalogo activo.');
+  }
+
+  async function onRestoreProduct(product: Product): Promise<void> {
+    await withLoader(async () => {
+      await apiRequest<Product>(`/products/${product.id}`, {
+        method: 'PATCH',
+        body: {
+          isActive: true,
+        },
+      });
+      await Promise.all([loadProducts(), loadStock()]);
+    }, 'Producto restaurado.');
   }
 
   async function onUploadPhoto(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -802,6 +926,25 @@ export const Dashboard = () => {
     );
   }
 
+  function findSaleProductCandidate(value: string): Product | undefined {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    const saleSearchBaseProducts =
+      role === 'REGISTRADOR'
+        ? products.filter((product) => registradorProductIds.has(product.id))
+        : products;
+    const activeProducts = saleSearchBaseProducts.filter((product) => product.isActive);
+
+    return (
+      activeProducts.find((item) => item.id.toLowerCase() === normalized) ??
+      activeProducts.find((item) => item.barcode?.toLowerCase() === normalized) ??
+      activeProducts.find((item) => item.name.toLowerCase() === normalized)
+    );
+  }
+
   async function onCreateSale(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!saleForm.items.length) {
@@ -910,7 +1053,7 @@ export const Dashboard = () => {
           email: userForm.email,
           password: userForm.password,
           role: userForm.role,
-          branchId: userForm.role === 'REGISTRADOR' ? userForm.branchId : undefined,
+          branchId: getUserBranchPayload(userForm.role, userForm.branchId),
         },
       });
       setUserForm({
@@ -958,7 +1101,7 @@ export const Dashboard = () => {
         email: userEditForm.email,
         password: userEditForm.password || undefined,
         role: userEditForm.role,
-        branchId: userEditForm.role === 'REGISTRADOR' ? userEditForm.branchId : undefined,
+        branchId: getUserBranchPayload(userEditForm.role, userEditForm.branchId),
       };
 
       await apiRequest<User>(`/users/${userEditForm.id}`, {
@@ -1019,27 +1162,35 @@ export const Dashboard = () => {
     }, 'Sucursal actualizada.');
   }
 
-  async function loadReport(period: 'daily' | 'weekly' | 'monthly'): Promise<void> {
-    await withLoader(async () => {
-      const query = {
-        date: reportDate,
-        branchId: reportBranchId || undefined,
-      };
-      const data = await apiRequest<LiquidationReport>(
-        `/reports/liquidation/${period}`,
-        { query },
-      );
+  async function loadReport(
+    period: 'daily' | 'weekly' | 'monthly',
+  ): Promise<void> {
+    const query = {
+      date: reportDate,
+      branchId: reportBranchId || undefined,
+    };
+    const data = await apiRequest<LiquidationReport>(
+      `/reports/liquidation/${period}`,
+      { query },
+    );
 
-      if (period === 'daily') {
-        setReportDaily(data);
-      }
-      if (period === 'weekly') {
-        setReportWeekly(data);
-      }
-      if (period === 'monthly') {
-        setReportMonthly(data);
-      }
-    });
+    if (period === 'daily') {
+      setReportDaily(data);
+    }
+    if (period === 'weekly') {
+      setReportWeekly(data);
+    }
+    if (period === 'monthly') {
+      setReportMonthly(data);
+    }
+  }
+
+  async function loadReports(): Promise<void> {
+    await Promise.all([
+      loadReport('daily'),
+      loadReport('weekly'),
+      loadReport('monthly'),
+    ]);
   }
 
   const totalSalesToday = salesToday.reduce((sum, sale) => sum + sale.total, 0);
@@ -1126,26 +1277,13 @@ export const Dashboard = () => {
   }, [theme]);
 
   return (
-    <div
-      className={`dashboard-app relative min-h-screen overflow-hidden ${
-        isLight
-          ? 'bg-gradient-to-br from-slate-100 via-sky-100 to-cyan-100 text-slate-900'
-          : 'bg-slate-950 text-slate-100'
-      }`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_10%,rgba(14,165,233,0.3),transparent_34%),radial-gradient(circle_at_92%_4%,rgba(59,130,246,0.32),transparent_28%),radial-gradient(circle_at_50%_95%,rgba(6,182,212,0.22),transparent_40%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(15,23,42,0.05)_0%,transparent_40%,rgba(14,165,233,0.06)_100%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.17] [background-image:linear-gradient(rgba(148,163,184,0.35)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.28)_1px,transparent_1px)] [background-size:42px_42px]" />
-      <div className="pointer-events-none absolute -left-20 top-12 h-72 w-72 rounded-full bg-cyan-500/30 blur-3xl" />
-      <div className="pointer-events-none absolute -right-14 top-28 h-80 w-80 rounded-full bg-blue-600/25 blur-3xl" />
-
-      <div className="relative mx-auto flex w-full flex-col gap-5 px-4 py-5 md:px-6 md:py-7 lg:px-8">
+    <div className="dashboard-shell">
+      <div className="dashboard-frame">
         <DashboardHeader
           activeTab={activeTab}
           activeTabHint={activeTabHint}
           isLight={isLight}
           onLogout={auth.logout}
-          onReloadData={() => void loadInitialData()}
           onTabChange={(tabKey) => setActiveTab(tabKey as DashboardTab)}
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
           tabs={tabs}
@@ -1156,190 +1294,202 @@ export const Dashboard = () => {
           }}
         />
 
-        {error ? (
-          <div className="rounded-2xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
-            {error}
+        <main className="dashboard-main px-4 py-5 md:px-6 md:py-6 xl:px-8">
+          <div className="mx-auto flex max-w-[1560px] flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="ui-eyebrow">{activeTabHint}</p>
+                <h2 className="text-2xl font-extrabold text-[color:var(--text-strong)]">
+                  {tabs.find((tab) => tab.key === activeTab)?.label ?? 'Dashboard'}
+                </h2>
+              </div>
+              <div className="text-sm font-semibold text-[color:var(--text-muted)]">
+                {auth.user?.role} / {auth.user?.branch?.name ?? 'Todas las sucursales'}
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-700">
+                {error}
+              </div>
+            ) : null}
+            {success ? (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+                {success}
+              </div>
+            ) : null}
+            {loading ? (
+              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-sm font-semibold text-[color:var(--text-muted)]">
+                Procesando...
+              </div>
+            ) : null}
+
+            {activeTab === 'overview' ? (
+              <OverviewSection
+                averageTicketToday={averageTicketToday}
+                branchPieSlices={branchPieSlices}
+                formatMoney={formatMoney}
+                lowStockRows={lowStockRows}
+                productPieSlices={productPieSlices}
+                topBranchTodayName={topBranchToday?.branchName}
+                topProductsToday={topProductsToday}
+                totalProducts={totalProducts}
+                totalSalesToday={totalSalesToday}
+                totalStockItems={totalStockItems}
+                totalTicketsToday={totalTicketsToday}
+                unitsSoldToday={unitsSoldToday}
+              />
+            ) : null}
+
+            {activeTab === 'products' ? (
+              <ProductsSection
+                branches={branches}
+                buildUploadsUrl={buildUploadsUrl}
+                canManage={canManage}
+                csvBranchId={csvBranchId}
+                csvResult={csvResult}
+                editingProductId={editingProductId}
+                formatMoney={formatMoney}
+                onDeleteProduct={onDeleteProduct}
+                onImportCsv={onImportCsv}
+                onProductSubmit={onProductSubmit}
+                onRestoreProduct={onRestoreProduct}
+                onUploadPhoto={onUploadPhoto}
+                photoUploadProductId={photoUploadProductId}
+                productActiveFilter={productActiveFilter}
+                productForm={productForm}
+                productSearch={productSearch}
+                productSiatFilter={productSiatFilter}
+                products={products}
+                setCsvBranchId={setCsvBranchId}
+                setCsvFile={setCsvFile}
+                setEditingProductId={setEditingProductId}
+                setPhotoUploadFile={setPhotoUploadFile}
+                setPhotoUploadProductId={setPhotoUploadProductId}
+                setProductActiveFilter={setProductActiveFilter}
+                setProductForm={setProductForm}
+                setProductSearch={setProductSearch}
+                setProductSiatFilter={setProductSiatFilter}
+                startProductEdit={startProductEdit}
+                visibleProducts={visibleProducts}
+              />
+            ) : null}
+
+            {activeTab === 'inventory' ? (
+              <InventorySection
+                branches={branches}
+                buildUploadsUrl={buildUploadsUrl}
+                canManage={canManage}
+                formatDate={formatDate}
+                isOwner={isOwner}
+                movementBranchId={movementBranchId}
+                movements={movements}
+                onAdjustStock={onAdjustStock}
+                productPhotoById={productPhotoById}
+                setMovementBranchId={setMovementBranchId}
+                setStockAdjustForm={setStockAdjustForm}
+                setStockBranchId={setStockBranchId}
+                startStockAdjust={startStockAdjust}
+                stock={stock}
+                stockAdjustForm={stockAdjustForm}
+                stockBranchId={stockBranchId}
+              />
+            ) : null}
+
+            {activeTab === 'sales' ? (
+              <SalesSection
+                addProductToSale={addProductToSale}
+                apiRequest={apiRequest}
+                auth={auth}
+                branches={branches}
+                buildUploadsUrl={buildUploadsUrl}
+                canManage={canManage}
+                enableEditForm={enableEditForm}
+                formatDate={formatDate}
+                formatMoney={formatMoney}
+                findSaleProductCandidate={findSaleProductCandidate}
+                getAvailableStockInfo={getAvailableStockInfo}
+                isOwner={isOwner}
+                lastEditControl={lastEditControl}
+                onCreateSale={onCreateSale}
+                onEnableEditWindow={onEnableEditWindow}
+                onFindSaleById={onFindSaleById}
+                onPatchSale={onPatchSale}
+                removeSaleItem={removeSaleItem}
+                resolveLookupCandidate={resolveLookupCandidate}
+                saleDetailId={saleDetailId}
+                saleDiscountPreview={saleDiscountPreview}
+                saleForm={saleForm}
+                saleLookup={saleLookup}
+                salePatchForm={salePatchForm}
+                saleSearchLoading={saleSearchLoading}
+                saleSearchMode={saleSearchMode}
+                saleSearchResults={saleSearchResults}
+                saleSubtotalPreview={saleSubtotalPreview}
+                saleTotalPreview={saleTotalPreview}
+                salesBranchId={salesBranchId}
+                salesToday={salesToday}
+                selectedSale={selectedSale}
+                setEnableEditForm={setEnableEditForm}
+                setSaleDetailId={setSaleDetailId}
+                setSaleForm={setSaleForm}
+                setSaleLookup={setSaleLookup}
+                setSalePatchForm={setSalePatchForm}
+                setSaleSearchMode={setSaleSearchMode}
+                setSaleSearchResults={setSaleSearchResults}
+                setSalesBranchId={setSalesBranchId}
+                setSelectedSale={setSelectedSale}
+                updateSaleItem={updateSaleItem}
+                withLoader={withLoader}
+              />
+            ) : null}
+
+            {activeTab === 'users' && canManage ? (
+              <UsersSection
+                branches={branches}
+                canManageTargetUser={canManageTargetUser}
+                isOwner={isOwner}
+                onCreateUser={onCreateUser}
+                onUpdateUser={onUpdateUser}
+                setUserEditForm={setUserEditForm}
+                setUserForm={setUserForm}
+                startUserEdit={startUserEdit}
+                toggleUserStatus={toggleUserStatus}
+                userEditForm={userEditForm}
+                userForm={userForm}
+                users={users}
+              />
+            ) : null}
+
+            {activeTab === 'branches' && canManage ? (
+              <BranchesSection
+                branchEdit={branchEdit}
+                branchForm={branchForm}
+                branches={branches}
+                formatDate={formatDate}
+                onCreateBranch={onCreateBranch}
+                onEditBranch={onEditBranch}
+                setBranchEdit={setBranchEdit}
+                setBranchForm={setBranchForm}
+              />
+            ) : null}
+
+            {activeTab === 'reports' && isOwner ? (
+              <ReportsSection
+                branches={branches}
+                formatDate={formatDate}
+                formatMoney={formatMoney}
+                reportBranchId={reportBranchId}
+                reportDaily={reportDaily}
+                reportDate={reportDate}
+                reportMonthly={reportMonthly}
+                reportWeekly={reportWeekly}
+                setReportBranchId={setReportBranchId}
+                setReportDate={setReportDate}
+              />
+            ) : null}
           </div>
-        ) : null}
-        {success ? (
-          <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-            {success}
-          </div>
-        ) : null}
-        {loading ? (
-          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
-            Procesando...
-          </div>
-        ) : null}
-
-        {activeTab === 'overview' ? (
-          <OverviewSection
-            averageTicketToday={averageTicketToday}
-            branchPieSlices={branchPieSlices}
-            formatMoney={formatMoney}
-            lowStockRows={lowStockRows}
-            productPieSlices={productPieSlices}
-            topBranchTodayName={topBranchToday?.branchName}
-            topProductsToday={topProductsToday}
-            totalProducts={totalProducts}
-            totalSalesToday={totalSalesToday}
-            totalStockItems={totalStockItems}
-            totalTicketsToday={totalTicketsToday}
-            unitsSoldToday={unitsSoldToday}
-          />
-        ) : null}
-
-                {activeTab === 'products' ? (
-          <ProductsSection
-            branches={branches}
-            buildUploadsUrl={buildUploadsUrl}
-            canManage={canManage}
-            csvBranchId={csvBranchId}
-            csvResult={csvResult}
-            editingProductId={editingProductId}
-            formatMoney={formatMoney}
-            loadProducts={loadProducts}
-            onImportCsv={onImportCsv}
-            onProductSubmit={onProductSubmit}
-            onUploadPhoto={onUploadPhoto}
-            photoUploadProductId={photoUploadProductId}
-            productActiveFilter={productActiveFilter}
-            productForm={productForm}
-            productSearch={productSearch}
-            productSiatFilter={productSiatFilter}
-            products={products}
-            setCsvBranchId={setCsvBranchId}
-            setCsvFile={setCsvFile}
-            setEditingProductId={setEditingProductId}
-            setPhotoUploadFile={setPhotoUploadFile}
-            setPhotoUploadProductId={setPhotoUploadProductId}
-            setProductActiveFilter={setProductActiveFilter}
-            setProductForm={setProductForm}
-            setProductSearch={setProductSearch}
-            setProductSiatFilter={setProductSiatFilter}
-            startProductEdit={startProductEdit}
-            visibleProducts={visibleProducts}
-            withLoader={withLoader}
-          />
-        ) : null}
-
-                {activeTab === 'inventory' ? (
-          <InventorySection
-            branches={branches}
-            buildUploadsUrl={buildUploadsUrl}
-            canManage={canManage}
-            formatDate={formatDate}
-            isOwner={isOwner}
-            loadMovements={loadMovements}
-            loadStock={loadStock}
-            movementBranchId={movementBranchId}
-            movements={movements}
-            onAdjustStock={onAdjustStock}
-            productPhotoById={productPhotoById}
-            setMovementBranchId={setMovementBranchId}
-            setStockAdjustForm={setStockAdjustForm}
-            setStockBranchId={setStockBranchId}
-            startStockAdjust={startStockAdjust}
-            stock={stock}
-            stockAdjustForm={stockAdjustForm}
-            stockBranchId={stockBranchId}
-            withLoader={withLoader}
-          />
-        ) : null}
-
-                {activeTab === 'sales' ? (
-          <SalesSection
-            addProductToSale={addProductToSale}
-            apiRequest={apiRequest}
-            auth={auth}
-            branches={branches}
-            buildUploadsUrl={buildUploadsUrl}
-            canManage={canManage}
-            enableEditForm={enableEditForm}
-            formatDate={formatDate}
-            formatMoney={formatMoney}
-            getAvailableStockInfo={getAvailableStockInfo}
-            isOwner={isOwner}
-            lastEditControl={lastEditControl}
-            loadSalesToday={loadSalesToday}
-            onCreateSale={onCreateSale}
-            onEnableEditWindow={onEnableEditWindow}
-            onFindSaleById={onFindSaleById}
-            onPatchSale={onPatchSale}
-            removeSaleItem={removeSaleItem}
-            resolveLookupCandidate={resolveLookupCandidate}
-            saleDetailId={saleDetailId}
-            saleDiscountPreview={saleDiscountPreview}
-            saleForm={saleForm}
-            saleLookup={saleLookup}
-            salePatchForm={salePatchForm}
-            saleSearchLoading={saleSearchLoading}
-            saleSearchMode={saleSearchMode}
-            saleSearchResults={saleSearchResults}
-            saleSubtotalPreview={saleSubtotalPreview}
-            saleTotalPreview={saleTotalPreview}
-            salesBranchId={salesBranchId}
-            salesToday={salesToday}
-            selectedSale={selectedSale}
-            setEnableEditForm={setEnableEditForm}
-            setSaleDetailId={setSaleDetailId}
-            setSaleForm={setSaleForm}
-            setSaleLookup={setSaleLookup}
-            setSalePatchForm={setSalePatchForm}
-            setSaleSearchMode={setSaleSearchMode}
-            setSaleSearchResults={setSaleSearchResults}
-            setSalesBranchId={setSalesBranchId}
-            setSelectedSale={setSelectedSale}
-            updateSaleItem={updateSaleItem}
-            withLoader={withLoader}
-          />
-        ) : null}
-
-                {activeTab === 'users' && canManage ? (
-          <UsersSection
-            branches={branches}
-            canManageTargetUser={canManageTargetUser}
-            isOwner={isOwner}
-            onCreateUser={onCreateUser}
-            onUpdateUser={onUpdateUser}
-            setUserEditForm={setUserEditForm}
-            setUserForm={setUserForm}
-            startUserEdit={startUserEdit}
-            toggleUserStatus={toggleUserStatus}
-            userEditForm={userEditForm}
-            userForm={userForm}
-            users={users}
-          />
-        ) : null}
-
-                {activeTab === 'branches' && canManage ? (
-          <BranchesSection
-            branchEdit={branchEdit}
-            branchForm={branchForm}
-            branches={branches}
-            formatDate={formatDate}
-            onCreateBranch={onCreateBranch}
-            onEditBranch={onEditBranch}
-            setBranchEdit={setBranchEdit}
-            setBranchForm={setBranchForm}
-          />
-        ) : null}
-
-                {activeTab === 'reports' && isOwner ? (
-          <ReportsSection
-            branches={branches}
-            formatDate={formatDate}
-            formatMoney={formatMoney}
-            loadReport={loadReport}
-            reportBranchId={reportBranchId}
-            reportDaily={reportDaily}
-            reportDate={reportDate}
-            reportMonthly={reportMonthly}
-            reportWeekly={reportWeekly}
-            setReportBranchId={setReportBranchId}
-            setReportDate={setReportDate}
-          />
-        ) : null}
+        </main>
       </div>
     </div>
   );

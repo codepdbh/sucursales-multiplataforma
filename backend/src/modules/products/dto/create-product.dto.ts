@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Min,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -43,6 +44,7 @@ export class CreateProductDto {
 
   @ApiProperty({ example: 15.5 })
   @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   defaultPrice!: number;
 
   @ApiPropertyOptional({ example: true, default: false })

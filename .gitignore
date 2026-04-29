@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Runtime uploads and logs
+backend/uploads/*
+!backend/uploads/products/
+backend/uploads/products/*
+!backend/uploads/products/.gitkeep
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# TypeScript / tooling cache
+*.tsbuildinfo
+.eslintcache
+.vite/

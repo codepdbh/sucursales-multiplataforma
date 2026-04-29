@@ -1,251 +1,284 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function InventorySection(props: any) {
-  const {
-    branches,
-    buildUploadsUrl,
-    canManage,
-    formatDate,
-    isOwner,
-    loadMovements,
-    loadStock,
-    movementBranchId,
-    movements,
-    onAdjustStock,
-    productPhotoById,
-    setMovementBranchId,
-    setStockAdjustForm,
-    setStockBranchId,
-    startStockAdjust,
-    stock,
-    stockAdjustForm,
-    stockBranchId,
-    withLoader,
-  } = props;
+import type { Dispatch, FormEvent, SetStateAction } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
 
+import type { Branch, InventoryMovement, StockItem } from '../../../lib/types';
+import {
+  Badge,
+  Button,
+  DataTable,
+  EmptyState,
+  Field,
+  Input,
+  Panel,
+  ProductImage,
+  SectionTitle,
+  Select,
+  Textarea,
+} from '../ui';
+
+interface StockAdjustFormState {
+  branchId: string;
+  currentQuantity: string;
+  notes: string;
+  productId: string;
+  productName: string;
+  stockId: string;
+  targetQuantity: string;
+  unitPrice: string;
+}
+
+interface InventorySectionProps {
+  branches: Branch[];
+  buildUploadsUrl: (path: string | null) => string | undefined;
+  canManage: boolean;
+  formatDate: (value: string) => string;
+  isOwner: boolean;
+  movementBranchId: string;
+  movements: InventoryMovement[];
+  onAdjustStock: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  productPhotoById: Map<string, string | null>;
+  setMovementBranchId: Dispatch<SetStateAction<string>>;
+  setStockAdjustForm: Dispatch<SetStateAction<StockAdjustFormState>>;
+  setStockBranchId: Dispatch<SetStateAction<string>>;
+  startStockAdjust: (item: StockItem) => void;
+  stock: StockItem[];
+  stockAdjustForm: StockAdjustFormState;
+  stockBranchId: string;
+}
+
+function stockTone(quantity: number): 'green' | 'amber' | 'red' {
+  if (quantity <= 0) {
+    return 'red';
+  }
+
+  if (quantity <= 5) {
+    return 'amber';
+  }
+
+  return 'green';
+}
+
+export function InventorySection({
+  branches,
+  buildUploadsUrl,
+  canManage,
+  formatDate,
+  isOwner,
+  movementBranchId,
+  movements,
+  onAdjustStock,
+  productPhotoById,
+  setMovementBranchId,
+  setStockAdjustForm,
+  setStockBranchId,
+  startStockAdjust,
+  stock,
+  stockAdjustForm,
+  stockBranchId,
+}: InventorySectionProps) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-      <div className="space-y-4">
-        <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            {canManage ? (
-              <select
-                value={stockBranchId}
-                onChange={(event) => setStockBranchId(event.target.value)}
-                className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              >
-                <option value="">Todas las sucursales</option>
-                {branches.map((branch: any) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-            <button
-              type="button"
-              className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-              onClick={() => void withLoader(loadStock)}
-            >
-              Refrescar stock
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-slate-400">
-                <tr>
-                  <th className="pb-3">Foto</th>
-                  <th className="pb-3">Sucursal</th>
-                  <th className="pb-3">Producto</th>
-                  <th className="pb-3">Marca</th>
-                  <th className="pb-3">Cantidad</th>
-                  {canManage ? <th className="pb-3">Accion</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {stock.map((item: any) => (
-                  <tr key={item.id} className="border-t border-slate-800">
-                    <td className="py-3 pr-3">
-                      {productPhotoById.get(item.productId) ? (
-                        <img
-                          src={buildUploadsUrl(productPhotoById.get(item.productId) ?? null)}
-                          alt={item.productName}
-                          className="h-11 w-11 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="grid h-11 w-11 place-items-center rounded-lg border border-slate-700 bg-slate-950 text-[10px] text-slate-500">
-                          Sin foto
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3">{item.branchName}</td>
-                    <td>{item.productName}</td>
-                    <td>{item.brandName}</td>
-                    <td>{item.quantity}</td>
-                    {canManage ? (
-                      <td>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-cyan-500/40 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10"
-                          onClick={() => startStockAdjust(item)}
-                        >
-                          Ajustar
-                        </button>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+      <div className="space-y-5">
+        <Panel className="p-5">
+          <SectionTitle
+            actions={
+              canManage ? (
+                <Select
+                  className="w-56"
+                  onChange={(event) => setStockBranchId(event.target.value)}
+                  value={stockBranchId}
+                >
+                  <option value="">Todas las sucursales</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : null
+            }
+            eyebrow="Stock"
+            title="Existencias por sucursal"
+          />
 
-        {isOwner ? (
-          <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-            <div className="mb-3 flex flex-wrap gap-2">
-              <select
-                value={movementBranchId}
-                onChange={(event) => setMovementBranchId(event.target.value)}
-                className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              >
-                <option value="">Movimientos globales</option>
-                {branches.map((branch: any) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-                onClick={() => void withLoader(loadMovements)}
-              >
-                Ver movimientos
-              </button>
-            </div>
-            <div className="max-h-80 overflow-auto rounded-xl border border-slate-800">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-950 text-slate-400">
+          <div className="mt-4">
+            {stock.length ? (
+              <DataTable>
+                <thead>
                   <tr>
-                    <th className="px-3 py-2">Fecha</th>
-                    <th className="px-3 py-2">Tipo</th>
-                    <th className="px-3 py-2">Producto</th>
-                    <th className="px-3 py-2">Cantidad</th>
-                    <th className="px-3 py-2">Ref</th>
+                    <th>Foto</th>
+                    <th>Sucursal</th>
+                    <th>Producto</th>
+                    <th>Marca</th>
+                    <th>Cantidad</th>
+                    {canManage ? <th>Acciones</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {movements.map((movement: any) => (
-                    <tr key={movement.id} className="border-t border-slate-800">
-                      <td className="px-3 py-2">{formatDate(movement.createdAt)}</td>
-                      <td className="px-3 py-2">{movement.type}</td>
-                      <td className="px-3 py-2">{movement.productName}</td>
-                      <td className="px-3 py-2">{movement.quantity}</td>
-                      <td className="px-3 py-2">{movement.refType ?? '-'}</td>
+                  {stock.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <ProductImage
+                          alt={item.productName}
+                          src={buildUploadsUrl(productPhotoById.get(item.productId) ?? null)}
+                        />
+                      </td>
+                      <td>{item.branchName}</td>
+                      <td className="font-bold text-[color:var(--text-strong)]">
+                        {item.productName}
+                      </td>
+                      <td>{item.brandName}</td>
+                      <td>
+                        <Badge tone={stockTone(item.quantity)}>{item.quantity}</Badge>
+                      </td>
+                      {canManage ? (
+                        <td>
+                          <Button icon={<SlidersHorizontal />} onClick={() => startStockAdjust(item)}>
+                            Ajustar
+                          </Button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </DataTable>
+            ) : (
+              <EmptyState>No hay stock para mostrar.</EmptyState>
+            )}
           </div>
+        </Panel>
+
+        {isOwner ? (
+          <Panel className="p-5">
+            <SectionTitle
+              actions={
+                <Select
+                  className="w-56"
+                  onChange={(event) => setMovementBranchId(event.target.value)}
+                  value={movementBranchId}
+                >
+                  <option value="">Todas las sucursales</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              }
+              eyebrow="Auditoria"
+              title="Movimientos"
+            />
+            <div className="mt-4 max-h-96 overflow-auto">
+              {movements.length ? (
+                <DataTable>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Tipo</th>
+                      <th>Producto</th>
+                      <th>Cantidad</th>
+                      <th>Referencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movements.map((movement) => (
+                      <tr key={movement.id}>
+                        <td>{formatDate(movement.createdAt)}</td>
+                        <td>
+                          <Badge tone={movement.type === 'IN' ? 'green' : 'amber'}>
+                            {movement.type}
+                          </Badge>
+                        </td>
+                        <td className="font-bold text-[color:var(--text-strong)]">
+                          {movement.productName}
+                        </td>
+                        <td>{movement.quantity}</td>
+                        <td>{movement.refType ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DataTable>
+              ) : (
+                <EmptyState>No hay movimientos con los filtros actuales.</EmptyState>
+              )}
+            </div>
+          </Panel>
         ) : null}
       </div>
 
       {canManage ? (
-        <div className="space-y-4">
-          <form
-            className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-            onSubmit={(event) => void onAdjustStock(event)}
-          >
-            <h3 className="text-lg font-semibold">Ajuste de stock (cantidad final)</h3>
-            <p className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
-              Define la cantidad final deseada. Si es menor al actual, descuenta.
-              Si es mayor, incrementa stock.
-            </p>
-            <select
-              value={stockAdjustForm.stockId}
-              onChange={(event) => {
-                const selected = stock.find((item: any) => item.id === event.target.value);
-                if (!selected) {
-                  return;
-                }
-                startStockAdjust(selected);
-              }}
-              className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Selecciona producto/sucursal</option>
-              {stock.map((item: any) => (
-                <option key={item.id} value={item.id}>
-                  {item.branchName} - {item.productName} (actual: {item.quantity})
-                </option>
-              ))}
-            </select>
-            <div className="grid gap-2 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-medium text-slate-400">
-                  Stock actual (solo lectura)
-                </span>
-                <input
-                  value={stockAdjustForm.currentQuantity}
-                  readOnly
-                  placeholder="Stock actual"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-medium text-slate-400">
-                  Cantidad final deseada
-                </span>
-                <input
-                  value={stockAdjustForm.targetQuantity}
+        <Panel className="h-fit p-5">
+          <SectionTitle eyebrow="Ajuste" title="Cantidad final" />
+          <form className="mt-4 grid gap-3" onSubmit={(event) => void onAdjustStock(event)}>
+            <Field label="Producto / sucursal">
+              <Select
+                onChange={(event) => {
+                  const selected = stock.find((item) => item.id === event.target.value);
+                  if (selected) {
+                    startStockAdjust(selected);
+                  }
+                }}
+                required
+                value={stockAdjustForm.stockId}
+              >
+                <option value="">Seleccionar</option>
+                {stock.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.branchName} / {item.productName} ({item.quantity})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Actual">
+                <Input readOnly value={stockAdjustForm.currentQuantity} />
+              </Field>
+              <Field label="Cantidad final">
+                <Input
+                  min="0"
                   onChange={(event) =>
-                    setStockAdjustForm((prev: any) => ({
+                    setStockAdjustForm((prev) => ({
                       ...prev,
                       targetQuantity: event.target.value,
                     }))
                   }
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  placeholder="Ejemplo: 50"
-                  className="ui-control w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
                   required
+                  step="0.001"
+                  type="number"
+                  value={stockAdjustForm.targetQuantity}
                 />
-              </label>
+              </Field>
             </div>
-            <input
-              value={stockAdjustForm.unitPrice}
-              onChange={(event) =>
-                setStockAdjustForm((prev: any) => ({
-                  ...prev,
-                  unitPrice: event.target.value,
-                }))
-              }
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Costo/precio unitario (opcional)"
-              className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            />
-            <textarea
-              value={stockAdjustForm.notes}
-              onChange={(event) =>
-                setStockAdjustForm((prev: any) => ({
-                  ...prev,
-                  notes: event.target.value,
-                }))
-              }
-              placeholder="Motivo del ajuste"
-              className="h-20 w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-            >
+            <Field label="Precio unitario">
+              <Input
+                min="0"
+                onChange={(event) =>
+                  setStockAdjustForm((prev) => ({
+                    ...prev,
+                    unitPrice: event.target.value,
+                  }))
+                }
+                step="0.01"
+                type="number"
+                value={stockAdjustForm.unitPrice}
+              />
+            </Field>
+            <Field label="Motivo">
+              <Textarea
+                onChange={(event) =>
+                  setStockAdjustForm((prev) => ({
+                    ...prev,
+                    notes: event.target.value,
+                  }))
+                }
+                value={stockAdjustForm.notes}
+              />
+            </Field>
+            <Button icon={<SlidersHorizontal />} type="submit" variant="primary">
               Aplicar ajuste
-            </button>
+            </Button>
           </form>
-        </div>
+        </Panel>
       ) : null}
     </section>
   );

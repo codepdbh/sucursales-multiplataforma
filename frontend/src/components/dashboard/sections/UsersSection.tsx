@@ -1,238 +1,276 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function UsersSection(props: any) {
-  const {
-    branches,
-    canManageTargetUser,
-    isOwner,
-    onCreateUser,
-    onUpdateUser,
-    setUserEditForm,
-    setUserForm,
-    startUserEdit,
-    toggleUserStatus,
-    userEditForm,
-    userForm,
-    users,
-  } = props;
+import type { Dispatch, FormEvent, SetStateAction } from 'react';
+import { Pencil, Power, UserPlus } from 'lucide-react';
+
+import type { Branch, User, UserRole } from '../../../lib/types';
+import { Badge, Button, DataTable, EmptyState, Field, Input, Panel, SectionTitle, Select } from '../ui';
+
+interface UserFormState {
+  branchId: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  username: string;
+}
+
+interface UserEditFormState extends UserFormState {
+  id: string;
+}
+
+interface UsersSectionProps {
+  branches: Branch[];
+  canManageTargetUser: (user: User | null | undefined) => boolean;
+  isOwner: boolean;
+  onCreateUser: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onUpdateUser: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  setUserEditForm: Dispatch<SetStateAction<UserEditFormState>>;
+  setUserForm: Dispatch<SetStateAction<UserFormState>>;
+  startUserEdit: (user: User) => void;
+  toggleUserStatus: (user: User) => Promise<void>;
+  userEditForm: UserEditFormState;
+  userForm: UserFormState;
+  users: User[];
+}
+
+function roleTone(role: UserRole): 'blue' | 'green' | 'neutral' {
+  if (role === 'OWNER') {
+    return 'blue';
+  }
+
+  if (role === 'ADMIN') {
+    return 'green';
+  }
+
+  return 'neutral';
+}
+
+export function UsersSection({
+  branches,
+  canManageTargetUser,
+  isOwner,
+  onCreateUser,
+  onUpdateUser,
+  setUserEditForm,
+  setUserForm,
+  startUserEdit,
+  toggleUserStatus,
+  userEditForm,
+  userForm,
+  users,
+}: UsersSectionProps) {
+  const editableUsers = users.filter((user) => canManageTargetUser(user));
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-      <div className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5">
-        <h3 className="mb-3 text-lg font-semibold">Usuarios</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-slate-400">
-              <tr>
-                <th className="pb-2">Usuario</th>
-                <th className="pb-2">Email</th>
-                <th className="pb-2">Rol</th>
-                <th className="pb-2">Sucursal</th>
-                <th className="pb-2">Estado</th>
-                <th className="pb-2">Accion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user: any) => {
-                const canManageThisUser = canManageTargetUser(user);
-                return (
-                  <tr key={user.id} className="border-t border-slate-800">
-                    <td className="py-2">{user.username}</td>
-                    <td>{user.email}</td>
-                    <td>{user.role}</td>
-                    <td>{user.branch?.name ?? '-'}</td>
-                    <td>{user.isActive ? 'Activo' : 'Inactivo'}</td>
-                    <td className="flex gap-2 py-2">
-                      <button
-                        type="button"
-                        className="rounded-lg border border-cyan-500/40 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-45"
-                        onClick={() => startUserEdit(user)}
-                        disabled={!canManageThisUser}
-                        title={!canManageThisUser ? 'Solo OWNER puede editar OWNER' : undefined}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
-                        onClick={() => void toggleUserStatus(user)}
-                        disabled={!canManageThisUser}
-                        title={
-                          !canManageThisUser
-                            ? 'Solo OWNER puede activar/desactivar OWNER'
-                            : undefined
-                        }
-                      >
-                        {user.isActive ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_420px]">
+      <Panel className="p-5">
+        <SectionTitle eyebrow="Accesos" title="Usuarios" />
+        <div className="mt-4">
+          {users.length ? (
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Sucursal</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => {
+                  const canManageThisUser = canManageTargetUser(user);
+
+                  return (
+                    <tr key={user.id}>
+                      <td className="font-bold text-[color:var(--text-strong)]">{user.username}</td>
+                      <td>{user.email}</td>
+                      <td>
+                        <Badge tone={roleTone(user.role)}>{user.role}</Badge>
+                      </td>
+                      <td>{user.branch?.name ?? '-'}</td>
+                      <td>
+                        <Badge tone={user.isActive ? 'green' : 'red'}>
+                          {user.isActive ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            disabled={!canManageThisUser}
+                            icon={<Pencil />}
+                            onClick={() => startUserEdit(user)}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            disabled={!canManageThisUser}
+                            icon={<Power />}
+                            onClick={() => void toggleUserStatus(user)}
+                            variant={user.isActive ? 'secondary' : 'primary'}
+                          >
+                            {user.isActive ? 'Desactivar' : 'Activar'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </DataTable>
+          ) : (
+            <EmptyState>No hay usuarios registrados.</EmptyState>
+          )}
         </div>
-      </div>
-      <div className="space-y-4">
-        <form
-          className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-          onSubmit={(event) => void onCreateUser(event)}
-        >
-          <h3 className="text-lg font-semibold">Crear usuario</h3>
-          <input
-            value={userForm.username}
-            onChange={(event) =>
-              setUserForm((prev: any) => ({ ...prev, username: event.target.value }))
-            }
-            placeholder="Username"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            value={userForm.email}
-            onChange={(event) =>
-              setUserForm((prev: any) => ({ ...prev, email: event.target.value }))
-            }
-            type="email"
-            placeholder="Email"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            value={userForm.password}
-            onChange={(event) =>
-              setUserForm((prev: any) => ({ ...prev, password: event.target.value }))
-            }
-            type="password"
-            placeholder="Password"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          />
-          <select
-            value={userForm.role}
-            onChange={(event) =>
-              setUserForm((prev: any) => ({ ...prev, role: event.target.value }))
-            }
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-          >
-            {isOwner ? <option value="OWNER">OWNER</option> : null}
-            <option value="ADMIN">ADMIN</option>
-            <option value="REGISTRADOR">REGISTRADOR</option>
-          </select>
-          {userForm.role === 'REGISTRADOR' ? (
-            <select
-              value={userForm.branchId}
-              onChange={(event) =>
-                setUserForm((prev: any) => ({ ...prev, branchId: event.target.value }))
-              }
-              className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Sucursal</option>
-              {branches.map((branch: any) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <button
-            type="submit"
-            className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-          >
-            Crear usuario
-          </button>
-        </form>
+      </Panel>
 
-        <form
-          className="ui-card ui-form-card space-y-3 rounded-3xl border border-slate-800 bg-slate-900 p-5"
-          onSubmit={(event) => void onUpdateUser(event)}
-        >
-          <h3 className="text-lg font-semibold">Editar usuario</h3>
-          <select
-            value={userEditForm.id}
-            onChange={(event) => {
-              const selected = users.find((item: any) => item.id === event.target.value);
-              if (!selected) {
-                return;
-              }
+      <div className="space-y-5">
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Alta" title="Crear usuario" />
+          <form className="mt-4 grid gap-3" onSubmit={(event) => void onCreateUser(event)}>
+            <Field label="Usuario">
+              <Input
+                onChange={(event) => setUserForm((prev) => ({ ...prev, username: event.target.value }))}
+                required
+                value={userForm.username}
+              />
+            </Field>
+            <Field label="Email">
+              <Input
+                onChange={(event) => setUserForm((prev) => ({ ...prev, email: event.target.value }))}
+                required
+                type="email"
+                value={userForm.email}
+              />
+            </Field>
+            <Field label="Password">
+              <Input
+                onChange={(event) => setUserForm((prev) => ({ ...prev, password: event.target.value }))}
+                required
+                type="password"
+                value={userForm.password}
+              />
+            </Field>
+            <Field label="Rol">
+              <Select
+                onChange={(event) =>
+                  setUserForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
+                }
+                value={userForm.role}
+              >
+                {isOwner ? <option value="OWNER">OWNER</option> : null}
+                {isOwner ? <option value="ADMIN">ADMIN</option> : null}
+                <option value="REGISTRADOR">REGISTRADOR</option>
+              </Select>
+            </Field>
+            {userForm.role !== 'OWNER' ? (
+              <Field label="Sucursal">
+                <Select
+                  onChange={(event) => setUserForm((prev) => ({ ...prev, branchId: event.target.value }))}
+                  required={userForm.role === 'REGISTRADOR'}
+                  value={userForm.branchId}
+                >
+                  <option value="">
+                    {userForm.role === 'ADMIN' ? 'Sin sucursal asignada' : 'Seleccionar'}
+                  </option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+            <Button icon={<UserPlus />} type="submit" variant="primary">
+              Crear usuario
+            </Button>
+          </form>
+        </Panel>
 
-              startUserEdit(selected);
-            }}
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          >
-            <option value="">Selecciona usuario</option>
-            {users
-              .filter((item: any) => canManageTargetUser(item))
-              .map((item: any) => (
-                <option key={item.id} value={item.id}>
-                  {item.username} ({item.role})
-                </option>
-              ))}
-          </select>
-          <input
-            value={userEditForm.username}
-            onChange={(event) =>
-              setUserEditForm((prev: any) => ({ ...prev, username: event.target.value }))
-            }
-            placeholder="Username"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            value={userEditForm.email}
-            onChange={(event) =>
-              setUserEditForm((prev: any) => ({ ...prev, email: event.target.value }))
-            }
-            type="email"
-            placeholder="Email"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            value={userEditForm.password}
-            onChange={(event) =>
-              setUserEditForm((prev: any) => ({ ...prev, password: event.target.value }))
-            }
-            type="password"
-            placeholder="Nuevo password (opcional)"
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-          />
-          <select
-            value={userEditForm.role}
-            onChange={(event) =>
-              setUserEditForm((prev: any) => ({ ...prev, role: event.target.value }))
-            }
-            className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-          >
-            {isOwner ? <option value="OWNER">OWNER</option> : null}
-            <option value="ADMIN">ADMIN</option>
-            <option value="REGISTRADOR">REGISTRADOR</option>
-          </select>
-          {userEditForm.role === 'REGISTRADOR' ? (
-            <select
-              value={userEditForm.branchId}
-              onChange={(event) =>
-                setUserEditForm((prev: any) => ({ ...prev, branchId: event.target.value }))
-              }
-              className="w-full ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Sucursal</option>
-              {branches.map((branch: any) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <button
-            type="submit"
-            className="ui-primary-btn rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
-          >
-            Guardar cambios
-          </button>
-        </form>
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Edicion" title="Editar usuario" />
+          <form className="mt-4 grid gap-3" onSubmit={(event) => void onUpdateUser(event)}>
+            <Field label="Usuario">
+              <Select
+                onChange={(event) => {
+                  const selected = editableUsers.find((user) => user.id === event.target.value);
+                  if (selected) {
+                    startUserEdit(selected);
+                  }
+                }}
+                required
+                value={userEditForm.id}
+              >
+                <option value="">Seleccionar</option>
+                {editableUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.username} ({user.role})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Usuario">
+              <Input
+                onChange={(event) =>
+                  setUserEditForm((prev) => ({ ...prev, username: event.target.value }))
+                }
+                required
+                value={userEditForm.username}
+              />
+            </Field>
+            <Field label="Email">
+              <Input
+                onChange={(event) => setUserEditForm((prev) => ({ ...prev, email: event.target.value }))}
+                required
+                type="email"
+                value={userEditForm.email}
+              />
+            </Field>
+            <Field label="Nuevo password">
+              <Input
+                onChange={(event) =>
+                  setUserEditForm((prev) => ({ ...prev, password: event.target.value }))
+                }
+                type="password"
+                value={userEditForm.password}
+              />
+            </Field>
+            <Field label="Rol">
+              <Select
+                onChange={(event) =>
+                  setUserEditForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
+                }
+                value={userEditForm.role}
+              >
+                {isOwner ? <option value="OWNER">OWNER</option> : null}
+                {isOwner ? <option value="ADMIN">ADMIN</option> : null}
+                <option value="REGISTRADOR">REGISTRADOR</option>
+              </Select>
+            </Field>
+            {userEditForm.role !== 'OWNER' ? (
+              <Field label="Sucursal">
+                <Select
+                  onChange={(event) =>
+                    setUserEditForm((prev) => ({ ...prev, branchId: event.target.value }))
+                  }
+                  required={userEditForm.role === 'REGISTRADOR'}
+                  value={userEditForm.branchId}
+                >
+                  <option value="">
+                    {userEditForm.role === 'ADMIN' ? 'Sin sucursal asignada' : 'Seleccionar'}
+                  </option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+            <Button icon={<Pencil />} type="submit" variant="primary">
+              Guardar cambios
+            </Button>
+          </form>
+        </Panel>
       </div>
     </section>
   );

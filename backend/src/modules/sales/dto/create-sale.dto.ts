@@ -24,6 +24,7 @@ export class CreateSaleItemDto {
   @ApiPropertyOptional({ example: 12.5 })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   unitPrice?: number;
 }
 

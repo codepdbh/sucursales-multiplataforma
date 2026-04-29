@@ -1,89 +1,127 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function ReportsSection(props: any) {
-  const {
-    branches,
-    formatDate,
-    formatMoney,
-    loadReport,
-    reportBranchId,
-    reportDaily,
-    reportDate,
-    reportMonthly,
-    reportWeekly,
-    setReportBranchId,
-    setReportDate,
-  } = props;
+import type { Dispatch, SetStateAction } from 'react';
 
+import type { Branch, LiquidationReport } from '../../../lib/types';
+import { Badge, Field, Input, Panel, SectionTitle, Select } from '../ui';
+
+interface ReportsSectionProps {
+  branches: Branch[];
+  formatDate: (value: string) => string;
+  formatMoney: (value: number) => string;
+  reportBranchId: string;
+  reportDaily: LiquidationReport | null;
+  reportDate: string;
+  reportMonthly: LiquidationReport | null;
+  reportWeekly: LiquidationReport | null;
+  setReportBranchId: Dispatch<SetStateAction<string>>;
+  setReportDate: Dispatch<SetStateAction<string>>;
+}
+
+interface ReportCardProps {
+  formatDate: (value: string) => string;
+  formatMoney: (value: number) => string;
+  label: string;
+  report: LiquidationReport | null;
+}
+
+function ReportCard({ formatDate, formatMoney, label, report }: ReportCardProps) {
   return (
-    <section className="space-y-4">
-      <div className="grid gap-3 ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5 md:grid-cols-3">
-        <input
-          type="date"
-          value={reportDate}
-          onChange={(event) => setReportDate(event.target.value)}
-          className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-        />
-        <select
-          value={reportBranchId}
-          onChange={(event) => setReportBranchId(event.target.value)}
-          className="ui-control rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-        >
-          <option value="">Todas las sucursales</option>
-          {branches.map((branch: any) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </select>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-            onClick={() => void loadReport('daily')}
-          >
-            Diario
-          </button>
-          <button
-            type="button"
-            className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-            onClick={() => void loadReport('weekly')}
-          >
-            Semanal
-          </button>
-          <button
-            type="button"
-            className="ui-primary-btn rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950"
-            onClick={() => void loadReport('monthly')}
-          >
-            Mensual
-          </button>
+    <Panel className="p-5">
+      <SectionTitle
+        actions={report ? <Badge tone={report.netTotal >= 0 ? 'green' : 'red'}>{formatMoney(report.netTotal)}</Badge> : null}
+        eyebrow="Liquidacion"
+        title={label}
+      />
+      {report ? (
+        <div className="mt-4 grid gap-3 text-sm">
+          <div className="rounded-lg bg-[color:var(--surface-muted)] p-3">
+            <p className="font-bold text-[color:var(--text-strong)]">
+              {formatDate(report.periodStart)} / {formatDate(report.periodEnd)}
+            </p>
+          </div>
+          <dl className="grid gap-2">
+            <div className="flex justify-between">
+              <dt>Ingresos</dt>
+              <dd className="font-bold">{formatMoney(report.incomeTotal)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Salidas valorizadas</dt>
+              <dd className="font-bold">{formatMoney(report.outputTotal)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Ventas</dt>
+              <dd className="font-bold">{report.salesCount}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Movimientos OUT</dt>
+              <dd className="font-bold">{report.movementsCount}</dd>
+            </div>
+          </dl>
         </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {[reportDaily, reportWeekly, reportMonthly].map((report, index) => {
-          const label = index === 0 ? 'Diario' : index === 1 ? 'Semanal' : 'Mensual';
-          return (
-            <article
-              key={label}
-              className="ui-card rounded-3xl border border-slate-800 bg-slate-900 p-5"
-            >
-              <h3 className="text-lg font-semibold">Reporte {label}</h3>
-              {report ? (
-                <div className="mt-3 space-y-1 text-sm">
-                  <p>Inicio: {formatDate(report.periodStart)}</p>
-                  <p>Fin: {formatDate(report.periodEnd)}</p>
-                  <p>Ingresos: {formatMoney(report.incomeTotal)}</p>
-                  <p>Salidas valorizadas: {formatMoney(report.outputTotal)}</p>
-                  <p>Utilidad neta: {formatMoney(report.netTotal)}</p>
-                  <p>Ventas: {report.salesCount}</p>
-                  <p>Movimientos OUT: {report.movementsCount}</p>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-400">Aun no se cargo este periodo.</p>
-              )}
-            </article>
-          );
-        })}
+      ) : (
+        <p className="mt-4 rounded-lg bg-[color:var(--surface-muted)] p-4 text-sm text-[color:var(--text-muted)]">
+          Sin reporte cargado.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+export function ReportsSection({
+  branches,
+  formatDate,
+  formatMoney,
+  reportBranchId,
+  reportDaily,
+  reportDate,
+  reportMonthly,
+  reportWeekly,
+  setReportBranchId,
+  setReportDate,
+}: ReportsSectionProps) {
+  return (
+    <section className="space-y-5">
+      <Panel className="p-5">
+        <SectionTitle eyebrow="Reportes" title="Liquidaciones" />
+        <div className="mt-4 grid gap-3 lg:grid-cols-[180px_minmax(0,260px)] lg:items-end">
+          <Field label="Fecha">
+            <Input
+              onChange={(event) => setReportDate(event.target.value)}
+              type="date"
+              value={reportDate}
+            />
+          </Field>
+          <Field label="Sucursal">
+            <Select onChange={(event) => setReportBranchId(event.target.value)} value={reportBranchId}>
+              <option value="">Todas</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </Panel>
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        <ReportCard
+          formatDate={formatDate}
+          formatMoney={formatMoney}
+          label="Diario"
+          report={reportDaily}
+        />
+        <ReportCard
+          formatDate={formatDate}
+          formatMoney={formatMoney}
+          label="Semanal"
+          report={reportWeekly}
+        />
+        <ReportCard
+          formatDate={formatDate}
+          formatMoney={formatMoney}
+          label="Mensual"
+          report={reportMonthly}
+        />
       </div>
     </section>
   );

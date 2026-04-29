@@ -5,13 +5,26 @@ function parseDateInput(date?: string): Date {
     return new Date();
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new BadRequestException('La fecha debe usar el formato YYYY-MM-DD.');
+  }
+
   const [year, month, day] = date.split('-').map(Number);
 
   if (!year || !month || !day) {
     throw new BadRequestException('La fecha debe usar el formato YYYY-MM-DD.');
   }
 
-  return new Date(year, month - 1, day);
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    throw new BadRequestException('La fecha indicada no es válida.');
+  }
+
+  return parsed;
 }
 
 export function getDailyRange(date?: string): { start: Date; end: Date } {

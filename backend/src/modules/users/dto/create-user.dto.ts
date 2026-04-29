@@ -37,7 +37,7 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     example: 'clx123branch',
-    description: 'Obligatorio para REGISTRADOR.',
+    description: 'Obligatorio para REGISTRADOR y opcional para ADMIN.',
   })
   @IsOptional()
   @IsString()

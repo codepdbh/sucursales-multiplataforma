@@ -8,7 +8,8 @@ import { diskStorage } from 'multer';
 export const productPhotoMulterOptions = {
   storage: diskStorage({
     destination: (_req, _file, callback) => {
-      const destinationPath = join(process.cwd(), 'uploads', 'products');
+      const uploadDir = process.env.UPLOAD_DIR || 'uploads';
+      const destinationPath = join(process.cwd(), uploadDir, 'products');
       mkdirSync(destinationPath, { recursive: true });
       callback(null, destinationPath);
     },
