@@ -14,7 +14,7 @@ import { ReportsService } from './reports.service';
 
 @ApiTags('Reportes')
 @ApiBearerAuth()
-@Roles(UserRole.OWNER)
+@Roles(UserRole.OWNER, UserRole.ADMIN)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -38,5 +38,19 @@ export class ReportsController {
   @ApiOkResponse({ type: LiquidationReportDto })
   monthly(@Query() query: ReportQueryDto): Promise<LiquidationReportDto> {
     return this.reportsService.monthly(query);
+  }
+
+  @Get('liquidation/annual')
+  @ApiOperation({ summary: 'Reporte de liquidación anual' })
+  @ApiOkResponse({ type: LiquidationReportDto })
+  annual(@Query() query: ReportQueryDto): Promise<LiquidationReportDto> {
+    return this.reportsService.annual(query);
+  }
+
+  @Get('liquidation/range')
+  @ApiOperation({ summary: 'Reporte de liquidación por rango de fechas' })
+  @ApiOkResponse({ type: LiquidationReportDto })
+  range(@Query() query: ReportQueryDto): Promise<LiquidationReportDto> {
+    return this.reportsService.range(query);
   }
 }

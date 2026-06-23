@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { AuthUser } from './auth-context';
 import { AuthContext } from './auth-context';
+import { getApiBaseUrl } from '../lib/api';
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -14,7 +15,7 @@ interface LoginResponse {
 }
 
 const TOKEN_STORAGE_KEY = 'inventory_access_token';
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3012/api';
+const API_BASE_URL = getApiBaseUrl();
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);

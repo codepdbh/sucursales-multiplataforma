@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { Eye, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react';
 
@@ -15,10 +16,10 @@ import {
   ProductImage,
   SectionTitle,
   Select,
-  Textarea,
 } from '../ui';
 
 type SaleSearchMode = 'ALL' | 'NAME' | 'BARCODE';
+type SalesActionPanel = 'find' | 'patch' | 'permission' | null;
 
 interface SaleCartItem {
   barcode: string | null;
@@ -157,16 +158,182 @@ export function SalesSection({
   updateSaleItem,
   withLoader,
 }: SalesSectionProps) {
+  const [activePanel, setActivePanel] = useState<SalesActionPanel>(null);
+
   return (
-    <section className={`grid gap-5 ${canManage ? 'xl:grid-cols-[minmax(0,1.35fr)_420px]' : ''}`}>
-      <div className="space-y-5">
+    <section className="space-y-5">
+      {canManage && activePanel === 'find' ? (
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Consulta" title="Buscar venta" />
+          <form className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end" onSubmit={(event) => void onFindSaleById(event)}>
+            <Field label="ID de venta">
+              <Input onChange={(event) => setSaleDetailId(event.target.value)} value={saleDetailId} />
+            </Field>
+            <Button icon={<Search />} type="submit" variant="primary">
+              Buscar
+            </Button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {canManage && activePanel === 'patch' ? (
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Correccion" title="Corregir venta" />
+          <form className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] lg:items-end" onSubmit={(event) => void onPatchSale(event)}>
+            <Field label="ID de venta">
+              <Input
+                onChange={(event) =>
+                  setSalePatchForm((prev) => ({ ...prev, saleId: event.target.value }))
+                }
+                required
+                value={salePatchForm.saleId}
+              />
+            </Field>
+            <Field label="Notas">
+              <Input
+                onChange={(event) =>
+                  setSalePatchForm((prev) => ({ ...prev, notes: event.target.value }))
+                }
+                value={salePatchForm.notes}
+              />
+            </Field>
+            <label className="flex min-h-[2.55rem] items-center gap-2 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-sm font-bold text-[color:var(--text)]">
+              <input
+                checked={salePatchForm.invoiceEnabled}
+                onChange={(event) =>
+                  setSalePatchForm((prev) => ({
+                    ...prev,
+                    invoiceEnabled: event.target.checked,
+                  }))
+                }
+                type="checkbox"
+              />
+              Factura
+            </label>
+            <Button className="lg:col-span-3" icon={<ShieldCheck />} type="submit" variant="primary">
+              Aplicar correccion
+            </Button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {canManage && isOwner && activePanel === 'permission' ? (
+        <Panel className="p-5">
+          <SectionTitle eyebrow="Permiso" title="Ventana de correccion" />
+          <form className="mt-4 grid gap-3 lg:grid-cols-[260px_260px_auto] lg:items-end" onSubmit={(event) => void onEnableEditWindow(event)}>
+            <Field label="Sucursal">
+              <Select
+                onChange={(event) =>
+                  setEnableEditForm((prev) => ({ ...prev, branchId: event.target.value }))
+                }
+                required
+                value={enableEditForm.branchId}
+              >
+                <option value="">Seleccionar</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Expira">
+              <Input
+                onChange={(event) =>
+                  setEnableEditForm((prev) => ({ ...prev, expiresAt: event.target.value }))
+                }
+                type="datetime-local"
+                value={enableEditForm.expiresAt}
+              />
+            </Field>
+            <Button icon={<ShieldCheck />} type="submit" variant="primary">
+              Habilitar
+            </Button>
+          </form>
+          {lastEditControl ? (
+            <p className="mt-3 rounded-lg bg-[color:var(--surface-muted)] p-3 text-xs font-semibold text-[color:var(--text-muted)]">
+              Creada: {formatDate(lastEditControl.createdAt)} / Expira:{' '}
+              {lastEditControl.expiresAt ? formatDate(lastEditControl.expiresAt) : 'Sin expiracion'}
+            </p>
+          ) : null}
+        </Panel>
+      ) : null}
+
+      {selectedSale ? (
         <Panel className="p-5">
           <SectionTitle
-            actions={!canManage ? <Badge tone="blue">{auth.user?.branch?.name ?? 'Sucursal'}</Badge> : null}
-            eyebrow="Venta"
-            title="Registrar venta"
+            actions={<Badge tone="green">{formatMoney(selectedSale.total)}</Badge>}
+            eyebrow="Detalle"
+            title="Venta seleccionada"
           />
-          <form className="mt-4 grid gap-4" onSubmit={(event) => void onCreateSale(event)}>
+          <div className="mt-3 space-y-2 text-sm">
+            <p className="font-mono text-xs text-[color:var(--text-muted)]">{selectedSale.id}</p>
+            <p className="font-bold text-[color:var(--text-strong)]">
+              {selectedSale.branchName} / {formatDate(selectedSale.createdAt)}
+            </p>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {selectedSale.items.map((item) => (
+                <div
+                  className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-2"
+                  key={item.id}
+                >
+                  <p className="font-bold text-[color:var(--text-strong)]">{item.productName}</p>
+                  <p className="text-xs text-[color:var(--text-muted)]">
+                    {item.quantity} x {formatMoney(item.unitPrice)} = {formatMoney(item.total)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      ) : null}
+
+      <Panel className="p-5">
+        <SectionTitle
+          actions={
+            canManage ? (
+              <>
+                <Button
+                  icon={<Search />}
+                  onClick={() => setActivePanel((prev) => (prev === 'find' ? null : 'find'))}
+                  variant={activePanel === 'find' ? 'primary' : 'secondary'}
+                >
+                  Buscar venta
+                </Button>
+                <Button
+                  icon={<ShieldCheck />}
+                  onClick={() => setActivePanel((prev) => (prev === 'patch' ? null : 'patch'))}
+                  variant={activePanel === 'patch' ? 'primary' : 'secondary'}
+                >
+                  Corregir
+                </Button>
+                {isOwner ? (
+                  <Button
+                    icon={<ShieldCheck />}
+                    onClick={() =>
+                      setActivePanel((prev) => (prev === 'permission' ? null : 'permission'))
+                    }
+                    variant={activePanel === 'permission' ? 'primary' : 'secondary'}
+                  >
+                    Permisos
+                  </Button>
+                ) : null}
+              </>
+            ) : (
+              <Badge tone="blue">{auth.user?.branch?.name ?? 'Sucursal'}</Badge>
+            )
+          }
+          eyebrow="Venta"
+          title="Registrar venta"
+        />
+        <form className="mt-4 grid gap-4" onSubmit={(event) => void onCreateSale(event)}>
+          <div
+            className={`grid gap-3 ${
+              canManage
+                ? 'lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_160px]'
+                : 'lg:grid-cols-[minmax(0,1fr)_160px]'
+            } lg:items-end`}
+          >
             {canManage ? (
               <Field label="Sucursal">
                 <Select
@@ -186,91 +353,87 @@ export function SalesSection({
               </Field>
             ) : null}
 
-            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
-              <div className="mb-3 flex flex-wrap gap-2">
-                {[
-                  { label: 'Todo', value: 'ALL' },
-                  { label: 'Nombre', value: 'NAME' },
-                  { label: 'Codigo', value: 'BARCODE' },
-                ].map((mode) => (
-                  <Button
-                    key={mode.value}
-                    onClick={() => setSaleSearchMode(mode.value as SaleSearchMode)}
-                    variant={saleSearchMode === mode.value ? 'primary' : 'secondary'}
-                  >
-                    {mode.label}
-                  </Button>
-                ))}
+            <Field label="Buscar producto">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-muted)]" />
+                <Input
+                  className="ui-input-with-icon"
+                  onChange={(event) => setSaleLookup(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    const candidate =
+                      findSaleProductCandidate(saleLookup) ??
+                      resolveLookupCandidate(saleLookup, saleSearchResults);
+                    if (candidate) {
+                      addProductToSale(candidate);
+                      setSaleLookup('');
+                      setSaleSearchResults([]);
+                    }
+                  }}
+                  placeholder="Nombre, codigo o ID"
+                  value={saleLookup}
+                />
               </div>
-              <Field label="Buscar producto">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-muted)]" />
-                  <Input
-                    className="ui-input-with-icon"
-                    onChange={(event) => setSaleLookup(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') {
-                        return;
-                      }
+            </Field>
+            <Field label="Buscar por">
+              <Select
+                onChange={(event) => setSaleSearchMode(event.target.value as SaleSearchMode)}
+                value={saleSearchMode}
+              >
+                <option value="ALL">Todo</option>
+                <option value="NAME">Nombre</option>
+                <option value="BARCODE">Codigo</option>
+              </Select>
+            </Field>
+          </div>
 
-                      event.preventDefault();
-                      const candidate =
-                        findSaleProductCandidate(saleLookup) ??
-                        resolveLookupCandidate(saleLookup, saleSearchResults);
-                      if (candidate) {
-                        addProductToSale(candidate);
-                        setSaleLookup('');
-                        setSaleSearchResults([]);
-                      }
+          {saleSearchLoading ? (
+            <p className="text-xs font-semibold text-[color:var(--text-muted)]">Buscando...</p>
+          ) : null}
+          {saleSearchResults.length ? (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {saleSearchResults.slice(0, 6).map((product) => {
+                const stockInfo = getAvailableStockInfo(product.id);
+
+                return (
+                  <button
+                    className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-2 text-left hover:bg-[color:var(--surface)]"
+                    key={product.id}
+                    onClick={() => {
+                      addProductToSale(product);
+                      setSaleLookup('');
+                      setSaleSearchResults([]);
                     }}
-                    placeholder="Nombre, codigo o ID"
-                    value={saleLookup}
-                  />
-                </div>
-              </Field>
-              {saleSearchLoading ? (
-                <p className="mt-2 text-xs font-semibold text-[color:var(--text-muted)]">Buscando...</p>
-              ) : null}
-              {saleSearchResults.length ? (
-                <div className="mt-3 grid gap-2">
-                  {saleSearchResults.slice(0, 6).map((product) => {
-                    const stockInfo = getAvailableStockInfo(product.id);
-
-                    return (
-                      <button
-                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-2 text-left hover:bg-[color:var(--surface-muted)]"
-                        key={product.id}
-                        onClick={() => {
-                          addProductToSale(product);
-                          setSaleLookup('');
-                          setSaleSearchResults([]);
-                        }}
-                        type="button"
-                      >
-                        <ProductImage alt={product.name} src={buildUploadsUrl(product.photoUrl)} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-[color:var(--text-strong)]">
-                            {product.name}
-                          </p>
-                          <p className="truncate text-xs text-[color:var(--text-muted)]">
-                            {product.brand.name} / {product.barcode ?? 'Sin codigo'}
-                          </p>
-                        </div>
-                        <div className="grid justify-items-end gap-1">
-                          <span className="text-sm font-extrabold text-[color:var(--text-strong)]">
-                            {formatMoney(product.defaultPrice)}
-                          </span>
-                          <StockBadge stockInfo={stockInfo} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+                    type="button"
+                  >
+                    <ProductImage alt={product.name} src={buildUploadsUrl(product.photoUrl)} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-[color:var(--text-strong)]">
+                        {product.name}
+                      </p>
+                      <p className="truncate text-xs text-[color:var(--text-muted)]">
+                        {formatMoney(product.defaultPrice)} / {product.barcode ?? 'Sin codigo'}
+                      </p>
+                      <div className="mt-1">
+                        <StockBadge stockInfo={stockInfo} />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+          ) : null}
 
             <Panel className="p-3 shadow-none">
-              <SectionTitle eyebrow="Detalle" title="Productos en venta" />
+              <SectionTitle
+                actions={<Badge tone={saleForm.items.length ? 'blue' : 'neutral'}>{saleForm.items.length}</Badge>}
+                eyebrow="Detalle"
+                title="Carrito"
+              />
               <div className="mt-3 grid gap-3">
                 {saleForm.items.length ? (
                   saleForm.items.map((item, index) => {
@@ -335,7 +498,9 @@ export function SalesSection({
                     );
                   })
                 ) : (
-                  <EmptyState>No hay productos agregados.</EmptyState>
+                  <div className="rounded-lg border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-muted)] p-4 text-center text-sm font-semibold text-[color:var(--text-muted)]">
+                    Agrega productos desde el buscador.
+                  </div>
                 )}
               </div>
             </Panel>
@@ -367,8 +532,9 @@ export function SalesSection({
               </label>
             </div>
             <Field label="Notas">
-              <Textarea
+              <Input
                 onChange={(event) => setSaleForm((prev) => ({ ...prev, notes: event.target.value }))}
+                placeholder="Opcional"
                 value={saleForm.notes}
               />
             </Field>
@@ -454,129 +620,6 @@ export function SalesSection({
             </div>
           </Panel>
         ) : null}
-      </div>
-
-      {canManage ? (
-        <div className="space-y-5">
-          <Panel className="p-5">
-            <SectionTitle eyebrow="Consulta" title="Buscar venta" />
-            <form className="mt-4 grid gap-3" onSubmit={(event) => void onFindSaleById(event)}>
-              <Field label="ID de venta">
-                <Input onChange={(event) => setSaleDetailId(event.target.value)} value={saleDetailId} />
-              </Field>
-              <Button icon={<Search />} type="submit" variant="primary">
-                Buscar
-              </Button>
-            </form>
-          </Panel>
-
-          <Panel className="p-5">
-            <SectionTitle eyebrow="Correccion" title="Venta" />
-            <form className="mt-4 grid gap-3" onSubmit={(event) => void onPatchSale(event)}>
-              <Field label="ID de venta">
-                <Input
-                  onChange={(event) =>
-                    setSalePatchForm((prev) => ({ ...prev, saleId: event.target.value }))
-                  }
-                  required
-                  value={salePatchForm.saleId}
-                />
-              </Field>
-              <Field label="Notas">
-                <Textarea
-                  onChange={(event) =>
-                    setSalePatchForm((prev) => ({ ...prev, notes: event.target.value }))
-                  }
-                  value={salePatchForm.notes}
-                />
-              </Field>
-              <label className="flex items-center gap-2 text-sm font-bold text-[color:var(--text)]">
-                <input
-                  checked={salePatchForm.invoiceEnabled}
-                  onChange={(event) =>
-                    setSalePatchForm((prev) => ({
-                      ...prev,
-                      invoiceEnabled: event.target.checked,
-                    }))
-                  }
-                  type="checkbox"
-                />
-                Factura habilitada
-              </label>
-              <Button icon={<ShieldCheck />} type="submit" variant="primary">
-                Aplicar
-              </Button>
-            </form>
-          </Panel>
-
-          {isOwner ? (
-            <Panel className="p-5">
-              <SectionTitle eyebrow="Permiso" title="Ventana de correccion" />
-              <form className="mt-4 grid gap-3" onSubmit={(event) => void onEnableEditWindow(event)}>
-                <Field label="Sucursal">
-                  <Select
-                    onChange={(event) =>
-                      setEnableEditForm((prev) => ({ ...prev, branchId: event.target.value }))
-                    }
-                    required
-                    value={enableEditForm.branchId}
-                  >
-                    <option value="">Seleccionar</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Expira">
-                  <Input
-                    onChange={(event) =>
-                      setEnableEditForm((prev) => ({ ...prev, expiresAt: event.target.value }))
-                    }
-                    type="datetime-local"
-                    value={enableEditForm.expiresAt}
-                  />
-                </Field>
-                <Button icon={<ShieldCheck />} type="submit" variant="primary">
-                  Habilitar
-                </Button>
-              </form>
-              {lastEditControl ? (
-                <p className="mt-3 rounded-lg bg-[color:var(--surface-muted)] p-3 text-xs font-semibold text-[color:var(--text-muted)]">
-                  Creada: {formatDate(lastEditControl.createdAt)} / Expira:{' '}
-                  {lastEditControl.expiresAt ? formatDate(lastEditControl.expiresAt) : 'Sin expiracion'}
-                </p>
-              ) : null}
-            </Panel>
-          ) : null}
-
-          {selectedSale ? (
-            <Panel className="p-5">
-              <SectionTitle actions={<Badge tone="green">{formatMoney(selectedSale.total)}</Badge>} eyebrow="Detalle" title="Venta seleccionada" />
-              <div className="mt-3 space-y-2 text-sm">
-                <p className="font-mono text-xs text-[color:var(--text-muted)]">{selectedSale.id}</p>
-                <p className="font-bold text-[color:var(--text-strong)]">
-                  {selectedSale.branchName} / {formatDate(selectedSale.createdAt)}
-                </p>
-                <div className="grid gap-2">
-                  {selectedSale.items.map((item) => (
-                    <div
-                      className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-2"
-                      key={item.id}
-                    >
-                      <p className="font-bold text-[color:var(--text-strong)]">{item.productName}</p>
-                      <p className="text-xs text-[color:var(--text-muted)]">
-                        {item.quantity} x {formatMoney(item.unitPrice)} = {formatMoney(item.total)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Panel>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }

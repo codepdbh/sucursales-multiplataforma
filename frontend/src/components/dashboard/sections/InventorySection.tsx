@@ -1,7 +1,12 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 
-import type { Branch, InventoryMovement, StockItem } from '../../../lib/types';
+import type {
+  Branch,
+  InventoryMovement,
+  Product,
+  StockItem,
+} from '../../../lib/types';
 import {
   Badge,
   Button,
@@ -37,10 +42,12 @@ interface InventorySectionProps {
   movements: InventoryMovement[];
   onAdjustStock: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   productPhotoById: Map<string, string | null>;
+  products: Product[];
   setMovementBranchId: Dispatch<SetStateAction<string>>;
   setStockAdjustForm: Dispatch<SetStateAction<StockAdjustFormState>>;
   setStockBranchId: Dispatch<SetStateAction<string>>;
   startStockAdjust: (item: StockItem) => void;
+  startStockAdjustForSelection: (branchId: string, productId: string) => void;
   stock: StockItem[];
   stockAdjustForm: StockAdjustFormState;
   stockBranchId: string;
@@ -68,14 +75,27 @@ export function InventorySection({
   movements,
   onAdjustStock,
   productPhotoById,
+  products,
   setMovementBranchId,
   setStockAdjustForm,
   setStockBranchId,
   startStockAdjust,
+  startStockAdjustForSelection,
   stock,
   stockAdjustForm,
   stockBranchId,
 }: InventorySectionProps) {
+  const activeBranches = branches.filter((branch) => branch.isActive);
+  const selectableBranches = stockBranchId
+    ? activeBranches.filter((branch) => branch.id === stockBranchId)
+    : activeBranches;
+  const selectableProducts = products
+    .filter((product) => product.isActive)
+    .sort((left, right) => left.name.localeCompare(right.name, 'es'));
+
+  const selectedBranchId =
+    stockAdjustForm.branchId || selectableBranches[0]?.id || '';
+
   return (
     <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_420px]">
       <div className="space-y-5">
@@ -100,6 +120,11 @@ export function InventorySection({
             eyebrow="Stock"
             title="Existencias por sucursal"
           />
+
+          <p className="mt-3 text-sm text-[color:var(--text-muted)]">
+            Los productos aparecen aqui cuando ya tienen existencias registradas.
+            Si acabas de crearlo, usa el panel de ajuste para cargar su primer stock.
+          </p>
 
           <div className="mt-4">
             {stock.length ? (
@@ -210,23 +235,71 @@ export function InventorySection({
         <Panel className="h-fit p-5">
           <SectionTitle eyebrow="Ajuste" title="Cantidad final" />
           <form className="mt-4 grid gap-3" onSubmit={(event) => void onAdjustStock(event)}>
-            <Field label="Producto / sucursal">
+            <Field label="Sucursal">
               <Select
                 onChange={(event) => {
-                  const selected = stock.find((item) => item.id === event.target.value);
-                  if (selected) {
-                    startStockAdjust(selected);
+                  const branchId = event.target.value;
+                  if (stockAdjustForm.productId) {
+                    startStockAdjustForSelection(branchId, stockAdjustForm.productId);
+                    return;
                   }
+
+                  setStockAdjustForm((prev) => ({
+                    ...prev,
+                    branchId,
+                    stockId: '',
+                    currentQuantity: '0',
+                    targetQuantity: prev.targetQuantity || '0',
+                  }));
                 }}
                 required
-                value={stockAdjustForm.stockId}
+                value={selectedBranchId}
               >
                 <option value="">Seleccionar</option>
-                {stock.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.branchName} / {item.productName} ({item.quantity})
+                {selectableBranches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
                   </option>
                 ))}
+              </Select>
+            </Field>
+            <Field label="Producto">
+              <Select
+                onChange={(event) => {
+                  const productId = event.target.value;
+                  if (!productId || !selectedBranchId) {
+                    setStockAdjustForm((prev) => ({
+                      ...prev,
+                      productId,
+                      productName:
+                        selectableProducts.find((product) => product.id === productId)?.name ?? '',
+                      stockId: '',
+                      currentQuantity: '0',
+                      targetQuantity: '0',
+                    }));
+                    return;
+                  }
+
+                  startStockAdjustForSelection(selectedBranchId, productId);
+                }}
+                required
+                value={stockAdjustForm.productId}
+              >
+                <option value="">Seleccionar</option>
+                {selectableProducts.map((product) => {
+                  const quantity =
+                    stock.find(
+                      (item) =>
+                        item.branchId === selectedBranchId &&
+                        item.productId === product.id,
+                    )?.quantity ?? 0;
+
+                  return (
+                    <option key={product.id} value={product.id}>
+                      {product.name} ({quantity})
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">

@@ -1,0 +1,22 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app/backend
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/package.json backend/package-lock.json backend/prisma.config.ts ./
+COPY backend/prisma ./prisma
+
+RUN npm ci
+
+COPY backend/. .
+COPY backend/docker-entrypoint.sh /usr/local/bin/sucmul-backend-entrypoint
+
+RUN chmod +x /usr/local/bin/sucmul-backend-entrypoint \
+    && npm run build
+
+EXPOSE 3012
+
+CMD ["sucmul-backend-entrypoint"]

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { MovementType } from '@prisma/client';
 
 import {
+  getAnnualRange,
+  getCustomRange,
   getDailyRange,
   getMonthlyRange,
   getWeeklyRange,
@@ -17,25 +19,36 @@ export class ReportsService {
 
   async daily(query: ReportQueryDto): Promise<LiquidationReportDto> {
     const range = getDailyRange(query.date);
-    return this.buildLiquidation(range.start, range.end, query.branchId);
+    return this.buildLiquidation(range.start, range.end, query.branchId, true);
   }
 
   async weekly(query: ReportQueryDto): Promise<LiquidationReportDto> {
     const range = getWeeklyRange(query.date);
-    return this.buildLiquidation(range.start, range.end, query.branchId);
+    return this.buildLiquidation(range.start, range.end, query.branchId, true);
   }
 
   async monthly(query: ReportQueryDto): Promise<LiquidationReportDto> {
     const range = getMonthlyRange(query.date);
-    return this.buildLiquidation(range.start, range.end, query.branchId);
+    return this.buildLiquidation(range.start, range.end, query.branchId, true);
+  }
+
+  async annual(query: ReportQueryDto): Promise<LiquidationReportDto> {
+    const range = getAnnualRange(query.date);
+    return this.buildLiquidation(range.start, range.end, query.branchId, true);
+  }
+
+  async range(query: ReportQueryDto): Promise<LiquidationReportDto> {
+    const range = getCustomRange(query.startDate, query.endDate);
+    return this.buildLiquidation(range.start, range.end, query.branchId, true);
   }
 
   private async buildLiquidation(
     start: Date,
     end: Date,
     branchId?: string,
+    includeSalesDetails = false,
   ): Promise<LiquidationReportDto> {
-    const [salesAggregate, salesCount, outMovements] = await Promise.all([
+    const [salesAggregate, salesCount, outMovements, salesDetailsSource] = await Promise.all([
       this.prisma.sale.aggregate({
         where: {
           branchId,
@@ -67,6 +80,29 @@ export class ReportsService {
           },
         },
       }),
+      includeSalesDetails
+        ? this.prisma.sale.findMany({
+            where: {
+              branchId,
+              createdAt: {
+                gte: start,
+                lt: end,
+              },
+            },
+            include: {
+              branch: true,
+              user: true,
+              items: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'asc',
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const incomeTotal = decimalToNumber(salesAggregate._sum.total) ?? 0;
@@ -84,6 +120,22 @@ export class ReportsService {
       netTotal: incomeTotal - outputTotal,
       salesCount,
       movementsCount: outMovements.length,
+      salesDetails: salesDetailsSource.flatMap((sale) =>
+        sale.items.map((item) => ({
+          saleId: sale.id,
+          saleItemId: item.id,
+          branchId: sale.branchId,
+          branchName: sale.branch.name,
+          productId: item.productId,
+          productName: item.product.name,
+          quantity: decimalToNumber(item.quantity) ?? 0,
+          unitPrice: decimalToNumber(item.unitPrice) ?? 0,
+          lineTotal: decimalToNumber(item.total) ?? 0,
+          userId: sale.userId,
+          username: sale.user.username,
+          createdAt: sale.createdAt,
+        })),
+      ),
     };
   }
 }

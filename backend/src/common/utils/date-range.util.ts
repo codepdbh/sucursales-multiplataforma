@@ -59,3 +59,36 @@ export function getMonthlyRange(date?: string): { start: Date; end: Date } {
 
   return { start, end };
 }
+
+export function getAnnualRange(date?: string): { start: Date; end: Date } {
+  const target = parseDateInput(date);
+  const start = new Date(target.getFullYear(), 0, 1);
+  const end = new Date(target.getFullYear() + 1, 0, 1);
+
+  return { start, end };
+}
+
+export function getCustomRange(
+  startDate?: string,
+  endDate?: string,
+): { start: Date; end: Date } {
+  if (!startDate || !endDate) {
+    throw new BadRequestException('Debe indicar fecha desde y fecha hasta.');
+  }
+
+  const start = parseDateInput(startDate);
+  start.setHours(0, 0, 0, 0);
+
+  const end = parseDateInput(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  if (end < start) {
+    throw new BadRequestException(
+      'La fecha hasta no puede ser menor a la fecha desde.',
+    );
+  }
+
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
