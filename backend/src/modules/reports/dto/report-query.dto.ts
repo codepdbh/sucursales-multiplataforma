@@ -10,6 +10,20 @@ export class ReportQueryDto {
   date?: string;
 
   @ApiPropertyOptional({
+    description: 'Fecha inicial para reportes por rango en formato YYYY-MM-DD.',
+  })
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Fecha final incluida para reportes por rango en formato YYYY-MM-DD.',
+  })
+  @IsOptional()
+  @IsString()
+  endDate?: string;
+
+  @ApiPropertyOptional({
     description: 'Sucursal opcional para filtrar el reporte.',
   })
   @IsOptional()

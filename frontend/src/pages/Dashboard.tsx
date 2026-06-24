@@ -15,7 +15,6 @@ import { ApiError, apiRequest, getApiBaseUrl } from '../lib/api';
 import { applyTheme, getInitialTheme } from '../lib/theme';
 import type {
   Branch,
-  ImportProductsResult,
   InventoryMovement,
   LiquidationReport,
   Product,
@@ -37,7 +36,7 @@ type DashboardTab =
 
 const TAB_HINTS: Record<DashboardTab, string> = {
   overview: 'Resumen operativo',
-  products: 'Catalogo y carga masiva',
+  products: 'Catalogo de productos',
   inventory: 'Stock y movimientos',
   sales: 'Registro y correcciones',
   users: 'Roles y accesos',
@@ -123,6 +122,8 @@ export const Dashboard = () => {
   const [reportDaily, setReportDaily] = useState<LiquidationReport | null>(null);
   const [reportWeekly, setReportWeekly] = useState<LiquidationReport | null>(null);
   const [reportMonthly, setReportMonthly] = useState<LiquidationReport | null>(null);
+  const [reportAnnual, setReportAnnual] = useState<LiquidationReport | null>(null);
+  const [reportRange, setReportRange] = useState<LiquidationReport | null>(null);
 
   const [productSearch, setProductSearch] = useState('');
   const [productSiatFilter, setProductSiatFilter] = useState<'ALL' | 'YES' | 'NO'>(
@@ -143,9 +144,6 @@ export const Dashboard = () => {
   });
   const [photoUploadProductId, setPhotoUploadProductId] = useState('');
   const [photoUploadFile, setPhotoUploadFile] = useState<File | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvBranchId, setCsvBranchId] = useState('');
-  const [csvResult, setCsvResult] = useState<ImportProductsResult | null>(null);
 
   const [stockBranchId, setStockBranchId] = useState(auth.user?.branch?.id ?? '');
   const [movementBranchId, setMovementBranchId] = useState('');
@@ -210,11 +208,14 @@ export const Dashboard = () => {
     isActive: true,
   });
   const [reportDate, setReportDate] = useState(getTodayDateString());
+  const [reportRangeStartDate, setReportRangeStartDate] = useState(getTodayDateString());
+  const [reportRangeEndDate, setReportRangeEndDate] = useState(getTodayDateString());
   const [reportBranchId, setReportBranchId] = useState('');
 
   const role = auth.user?.role ?? 'REGISTRADOR';
   const isOwner = role === 'OWNER';
   const canManage = role === 'OWNER' || role === 'ADMIN';
+  const canViewReports = role === 'OWNER' || role === 'ADMIN';
   const canManageTargetUser = useCallback((targetUser: User | null | undefined): boolean => {
     if (!targetUser) {
       return false;
@@ -256,12 +257,12 @@ export const Dashboard = () => {
       base.push({ key: 'branches', label: 'Sucursales' });
     }
 
-    if (isOwner) {
+    if (canViewReports) {
       base.push({ key: 'reports', label: 'Reportes' });
     }
 
     return base;
-  }, [canManage, isOwner]);
+  }, [canManage, canViewReports]);
   const selectedUserForEdit = useMemo(
     () => users.find((item) => item.id === userEditForm.id) ?? null,
     [users, userEditForm.id],
@@ -395,12 +396,13 @@ export const Dashboard = () => {
     setBranches(data);
   }
 
-  async function loadStock(): Promise<void> {
+  async function loadStock(): Promise<StockItem[]> {
     const query = {
       branchId: getBranchValueForRole(stockBranchId),
     };
     const data = await apiRequest<StockItem[]>('/inventory/stock', { query });
     setStock(data);
+    return data;
   }
 
   async function loadSalesToday(): Promise<void> {
@@ -472,7 +474,7 @@ export const Dashboard = () => {
         loadSalesToday(),
         loadUsers(),
         loadMovements(),
-        isOwner ? loadReports() : Promise.resolve(),
+        canViewReports ? loadReports() : Promise.resolve(),
       ]);
     } catch {
       // Silent refresh should not interrupt active work on the dashboard.
@@ -495,6 +497,7 @@ export const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canManage,
+    canViewReports,
     isOwner,
     movementBranchId,
     productActiveFilter,
@@ -521,13 +524,16 @@ export const Dashboard = () => {
       return;
     }
 
-    setCsvBranchId((prev) => prev || branches[0]?.id || '');
-    setSalesBranchId((prev) => prev || branches[0]?.id || '');
+    const firstActiveBranchId = branches.find((branch) => branch.isActive)?.id ?? '';
     setSaleForm((prev) => ({ ...prev, branchId: prev.branchId || branches[0]?.id || '' }));
     setEnableEditForm((prev) => ({ ...prev, branchId: prev.branchId || branches[0]?.id || '' }));
     setReportBranchId((prev) => prev || branches[0]?.id || '');
     setUserForm((prev) => ({ ...prev, branchId: prev.branchId || branches[0]?.id || '' }));
     setUserEditForm((prev) => ({ ...prev, branchId: prev.branchId || branches[0]?.id || '' }));
+    setStockAdjustForm((prev) => ({
+      ...prev,
+      branchId: prev.branchId || stockBranchId || firstActiveBranchId,
+    }));
   }, [branches, canManage]);
 
   useEffect(() => {
@@ -563,13 +569,19 @@ export const Dashboard = () => {
   }, [movementBranchId, isOwner]);
 
   useEffect(() => {
-    if (!isOwner) {
+    if (!canViewReports) {
       return;
     }
 
     void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportBranchId, reportDate, isOwner]);
+  }, [
+    reportBranchId,
+    reportDate,
+    reportRangeStartDate,
+    reportRangeEndDate,
+    canViewReports,
+  ]);
 
   useEffect(() => {
     const lookup = saleLookup.trim().toLowerCase();
@@ -655,13 +667,24 @@ export const Dashboard = () => {
         isActive: productForm.isActive,
       };
 
+      let savedProduct: Product;
       if (editingProductId) {
-        await apiRequest<Product>(`/products/${editingProductId}`, {
+        savedProduct = await apiRequest<Product>(`/products/${editingProductId}`, {
           method: 'PATCH',
           body: payload,
         });
       } else {
-        await apiRequest<Product>('/products', { method: 'POST', body: payload });
+        savedProduct = await apiRequest<Product>('/products', { method: 'POST', body: payload });
+      }
+
+      if (photoUploadFile) {
+        const formData = new FormData();
+        formData.append('file', photoUploadFile);
+        await apiRequest<Product>(`/products/${savedProduct.id}/photo`, {
+          method: 'POST',
+          body: formData,
+          isMultipart: true,
+        });
       }
 
       setProductForm({
@@ -673,6 +696,7 @@ export const Dashboard = () => {
         siatEnabled: false,
         isActive: true,
       });
+      setPhotoUploadFile(null);
       setEditingProductId(null);
       await loadProducts();
     }, editingProductId ? 'Producto actualizado.' : 'Producto creado.');
@@ -745,35 +769,6 @@ export const Dashboard = () => {
     }, 'Foto de producto subida.');
   }
 
-  async function onImportCsv(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!csvFile) {
-      setError('Selecciona un archivo CSV para importar.');
-      return;
-    }
-
-    if (canManage && !csvBranchId) {
-      setError('Selecciona una sucursal para importar el CSV.');
-      return;
-    }
-
-    await withLoader(async () => {
-      const formData = new FormData();
-      formData.append('file', csvFile);
-      if (canManage && csvBranchId) {
-        formData.append('branchId', csvBranchId);
-      }
-
-      const result = await apiRequest<ImportProductsResult>('/products/import/csv', {
-        method: 'POST',
-        body: formData,
-        isMultipart: true,
-      });
-      setCsvResult(result);
-      await Promise.all([loadProducts(), loadStock()]);
-    }, 'CSV importado correctamente.');
-  }
-
   function startStockAdjust(item: StockItem): void {
     setStockAdjustForm({
       stockId: item.id,
@@ -787,11 +782,29 @@ export const Dashboard = () => {
     });
   }
 
+  function startStockAdjustForSelection(branchId: string, productId: string): void {
+    const selectedProduct = products.find((product) => product.id === productId);
+    const selectedStock = stock.find(
+      (item) => item.branchId === branchId && item.productId === productId,
+    );
+
+    setStockAdjustForm({
+      stockId: selectedStock?.id ?? '',
+      branchId,
+      productId,
+      productName: selectedStock?.productName ?? selectedProduct?.name ?? '',
+      currentQuantity: String(selectedStock?.quantity ?? 0),
+      targetQuantity: String(selectedStock?.quantity ?? 0),
+      unitPrice: '',
+      notes: '',
+    });
+  }
+
   async function onAdjustStock(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
-    if (!stockAdjustForm.stockId) {
-      setError('Selecciona un registro de stock para ajustar.');
+    if (!stockAdjustForm.branchId || !stockAdjustForm.productId) {
+      setError('Selecciona una sucursal y un producto para ajustar existencias.');
       return;
     }
 
@@ -809,13 +822,17 @@ export const Dashboard = () => {
 
     await withLoader(async () => {
       const delta = target - current;
+      const productName =
+        stockAdjustForm.productName ||
+        products.find((product) => product.id === stockAdjustForm.productId)?.name ||
+        'producto';
       const basePayload = {
         branchId: stockAdjustForm.branchId,
         productId: stockAdjustForm.productId,
         unitPrice: toNumber(stockAdjustForm.unitPrice),
         notes:
           stockAdjustForm.notes ||
-          `Ajuste manual de stock: ${current} -> ${target}`,
+          `Ajuste manual de stock para ${productName}: ${current} -> ${target}`,
       };
 
       if (delta > 0) {
@@ -836,11 +853,20 @@ export const Dashboard = () => {
         });
       }
 
+      const [updatedStock] = await Promise.all([loadStock(), loadMovements()]);
+      const refreshedStock = updatedStock.find(
+        (item) =>
+          item.branchId === stockAdjustForm.branchId &&
+          item.productId === stockAdjustForm.productId,
+      );
+
       setStockAdjustForm((prev) => ({
         ...prev,
-        currentQuantity: String(target),
+        stockId: refreshedStock?.id ?? '',
+        productName: refreshedStock?.productName ?? prev.productName,
+        currentQuantity: String(refreshedStock?.quantity ?? target),
+        targetQuantity: String(refreshedStock?.quantity ?? target),
       }));
-      await Promise.all([loadStock(), loadMovements()]);
     }, 'Stock ajustado correctamente.');
   }
 
@@ -1163,12 +1189,24 @@ export const Dashboard = () => {
   }
 
   async function loadReport(
-    period: 'daily' | 'weekly' | 'monthly',
+    period: 'daily' | 'weekly' | 'monthly' | 'annual' | 'range',
   ): Promise<void> {
-    const query = {
-      date: reportDate,
-      branchId: reportBranchId || undefined,
-    };
+    if (period === 'range' && (!reportRangeStartDate || !reportRangeEndDate)) {
+      setReportRange(null);
+      return;
+    }
+
+    const query =
+      period === 'range'
+        ? {
+            startDate: reportRangeStartDate,
+            endDate: reportRangeEndDate,
+            branchId: reportBranchId || undefined,
+          }
+        : {
+            date: reportDate,
+            branchId: reportBranchId || undefined,
+          };
     const data = await apiRequest<LiquidationReport>(
       `/reports/liquidation/${period}`,
       { query },
@@ -1183,6 +1221,12 @@ export const Dashboard = () => {
     if (period === 'monthly') {
       setReportMonthly(data);
     }
+    if (period === 'annual') {
+      setReportAnnual(data);
+    }
+    if (period === 'range') {
+      setReportRange(data);
+    }
   }
 
   async function loadReports(): Promise<void> {
@@ -1190,6 +1234,8 @@ export const Dashboard = () => {
       loadReport('daily'),
       loadReport('weekly'),
       loadReport('monthly'),
+      loadReport('annual'),
+      loadReport('range'),
     ]);
   }
 
@@ -1276,8 +1322,39 @@ export const Dashboard = () => {
     applyTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (!error && !success) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setError(null);
+      setSuccess(null);
+    }, 3600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error, success]);
+
   return (
     <div className="dashboard-shell">
+      <div className="dashboard-toasts" aria-live="polite" aria-atomic="true">
+        {loading ? (
+          <div className="dashboard-toast dashboard-toast-loading" role="status">
+            Procesando...
+          </div>
+        ) : null}
+        {success ? (
+          <div className="dashboard-toast dashboard-toast-success dashboard-toast-transient" role="status">
+            {success}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="dashboard-toast dashboard-toast-error dashboard-toast-transient" role="alert">
+            {error}
+          </div>
+        ) : null}
+      </div>
+
       <div className="dashboard-frame">
         <DashboardHeader
           activeTab={activeTab}
@@ -1308,22 +1385,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {error ? (
-              <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-700">
-                {error}
-              </div>
-            ) : null}
-            {success ? (
-              <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
-                {success}
-              </div>
-            ) : null}
-            {loading ? (
-              <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-sm font-semibold text-[color:var(--text-muted)]">
-                Procesando...
-              </div>
-            ) : null}
-
             {activeTab === 'overview' ? (
               <OverviewSection
                 averageTicketToday={averageTicketToday}
@@ -1343,15 +1404,11 @@ export const Dashboard = () => {
 
             {activeTab === 'products' ? (
               <ProductsSection
-                branches={branches}
                 buildUploadsUrl={buildUploadsUrl}
                 canManage={canManage}
-                csvBranchId={csvBranchId}
-                csvResult={csvResult}
                 editingProductId={editingProductId}
                 formatMoney={formatMoney}
                 onDeleteProduct={onDeleteProduct}
-                onImportCsv={onImportCsv}
                 onProductSubmit={onProductSubmit}
                 onRestoreProduct={onRestoreProduct}
                 onUploadPhoto={onUploadPhoto}
@@ -1360,9 +1417,6 @@ export const Dashboard = () => {
                 productForm={productForm}
                 productSearch={productSearch}
                 productSiatFilter={productSiatFilter}
-                products={products}
-                setCsvBranchId={setCsvBranchId}
-                setCsvFile={setCsvFile}
                 setEditingProductId={setEditingProductId}
                 setPhotoUploadFile={setPhotoUploadFile}
                 setPhotoUploadProductId={setPhotoUploadProductId}
@@ -1386,10 +1440,12 @@ export const Dashboard = () => {
                 movements={movements}
                 onAdjustStock={onAdjustStock}
                 productPhotoById={productPhotoById}
+                products={products}
                 setMovementBranchId={setMovementBranchId}
                 setStockAdjustForm={setStockAdjustForm}
                 setStockBranchId={setStockBranchId}
                 startStockAdjust={startStockAdjust}
+                startStockAdjustForSelection={startStockAdjustForSelection}
                 stock={stock}
                 stockAdjustForm={stockAdjustForm}
                 stockBranchId={stockBranchId}
@@ -1474,18 +1530,24 @@ export const Dashboard = () => {
               />
             ) : null}
 
-            {activeTab === 'reports' && isOwner ? (
+            {activeTab === 'reports' && canViewReports ? (
               <ReportsSection
                 branches={branches}
                 formatDate={formatDate}
                 formatMoney={formatMoney}
                 reportBranchId={reportBranchId}
+                reportAnnual={reportAnnual}
                 reportDaily={reportDaily}
                 reportDate={reportDate}
                 reportMonthly={reportMonthly}
+                reportRange={reportRange}
+                reportRangeEndDate={reportRangeEndDate}
+                reportRangeStartDate={reportRangeStartDate}
                 reportWeekly={reportWeekly}
                 setReportBranchId={setReportBranchId}
                 setReportDate={setReportDate}
+                setReportRangeEndDate={setReportRangeEndDate}
+                setReportRangeStartDate={setReportRangeStartDate}
               />
             ) : null}
           </div>
@@ -1494,12 +1556,3 @@ export const Dashboard = () => {
     </div>
   );
 };
-
-
-
-
-
-
-
-
-

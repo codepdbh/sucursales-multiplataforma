@@ -117,6 +117,51 @@ button:disabled {
   min-width: 0;
 }
 
+.dashboard-toasts {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 80;
+  display: grid;
+  width: min(24rem, calc(100vw - 2rem));
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.dashboard-toast {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 18px 42px -24px rgba(15, 23, 42, 0.58);
+  padding: 0.85rem 0.95rem;
+  color: var(--text-strong);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.35;
+  pointer-events: auto;
+  transform-origin: bottom right;
+}
+
+.dashboard-toast-transient {
+  animation: dashboard-toast-lifecycle 3.6s ease forwards;
+}
+
+.dashboard-toast-loading {
+  border-color: color-mix(in srgb, var(--brand) 36%, var(--border));
+  color: var(--text-muted);
+  animation: dashboard-toast-enter 0.18s ease-out both;
+}
+
+.dashboard-toast-success {
+  border-color: color-mix(in srgb, var(--green) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, var(--green) 12%);
+}
+
+.dashboard-toast-error {
+  border-color: color-mix(in srgb, var(--red) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, var(--red) 12%);
+}
+
 .ui-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -326,6 +371,33 @@ button:disabled {
   background: color-mix(in srgb, var(--surface-muted) 52%, transparent);
 }
 
+.report-sheet .ui-table-wrap {
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.report-sheet .ui-table {
+  min-width: 920px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.report-sheet .ui-table th {
+  background: color-mix(in srgb, var(--surface-muted) 86%, var(--surface));
+  color: var(--text-muted);
+}
+
+.report-sheet .report-number-cell {
+  text-align: right;
+}
+
+.report-sheet .report-money-cell {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
 .ui-product-thumb {
   display: grid;
   width: 2.75rem;
@@ -350,6 +422,36 @@ button:disabled {
     var(--app-bg);
 }
 
+@keyframes dashboard-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(1rem) translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes dashboard-toast-lifecycle {
+  0% {
+    opacity: 0;
+    transform: translateX(1rem) translateY(0.35rem);
+  }
+
+  8%,
+  82% {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(1.25rem) translateY(0.35rem);
+  }
+}
+
 @media (max-width: 1024px) {
   .dashboard-frame {
     grid-template-columns: 1fr;
@@ -364,6 +466,12 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+  .dashboard-toasts {
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: calc(100vw - 1.5rem);
+  }
+
   .ui-table {
     min-width: 620px;
   }

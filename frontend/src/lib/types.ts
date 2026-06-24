@@ -96,6 +96,22 @@ export interface LiquidationReport {
   netTotal: number;
   salesCount: number;
   movementsCount: number;
+  salesDetails: LiquidationSaleDetail[];
+}
+
+export interface LiquidationSaleDetail {
+  saleId: string;
+  saleItemId: string;
+  branchId: string;
+  branchName: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  userId: string;
+  username: string;
+  createdAt: string;
 }
 
 export interface SalesEditControl {
